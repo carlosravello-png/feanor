@@ -9,10 +9,19 @@ Uso (Anaconda Prompt, entorno paddle):
     conda activate paddle
     python D:\\PDF_A_MD\\banco\\paddle_banco.py
 
-Variantes (tres columnas):
+    python D:\\PDF_A_MD\\banco\\paddle_banco.py paddle_aplanado tolkien --umbral 0.3
+
+Variantes (dos columnas):
     paddle_sin_aplanar    páginas partidas, sin aplanar
     paddle_aplanado       páginas aplanadas por aplanar-libro 0.4.4
-    paddle_su_aplanador   páginas partidas, con el aplanador propio de PaddleOCR
+
+El aplanador propio de PaddleOCR (UVDoc) se probó en la corrida
+20261114-021926_paddle y se descartó: dejó páginas casi vacías. Sin él hay
+un solo lector cargado, y la memoria de la tarjeta queda bien medida.
+
+--umbral X  baja el umbral con que el detector acepta un renglón (por defecto
+            0.6). Sirve para probar si recupera renglones inclinados que hoy
+            no ve (Tolkien, página 8). Los resultados van a <variante>_umbralX.
 
 Cada corrida va a una carpeta nueva en banco\\corridas; no sobrescribe nada.
 """
@@ -34,11 +43,7 @@ sys.path.insert(0, str(AQUI / "versiones" / "v0.4.4"))      # para usar la misma
 import pymupdf as fitz
 from aplanar_libro.markdown import AVISO, compuestos_del_documento, es_indice, limpiar
 
-VARIANTES = {
-    "paddle_sin_aplanar": ("sin-aplanar", False),
-    "paddle_aplanado": ("aplanado", False),
-    "paddle_su_aplanador": ("sin-aplanar", True),
-}
+VARIANTES = {"paddle_sin_aplanar": "sin-aplanar", "paddle_aplanado": "aplanado"}
 
 
 def ultima_corrida(sufijo: str) -> Path:
@@ -74,7 +79,22 @@ class MedidorVRAM:
     def parar(self) -> dict:
         self._seguir = False
         self._hilo.join(timeout=5)
-        return {"vram_antes_mb": self.base, "vram_pico_mb": self.pico}
+        return {"vram_antes_mb": self.base, "vram_pico_mb": self.pico, **memoria_paddle()}
+
+
+def memoria_paddle() -> dict:
+    """Lo que Paddle usa de verdad frente a lo que tiene apartado en la tarjeta.
+
+    nvidia-smi solo ve lo apartado. Si «usada» queda muy por debajo de
+    «apartada», la tarjeta no está al límite: Paddle reserva y no suelta.
+    """
+    try:
+        from paddle.device import cuda
+        mb = 1024 * 1024
+        return {"paddle_usada_pico_mb": round(cuda.max_memory_allocated() / mb),
+                "paddle_apartada_pico_mb": round(cuda.max_memory_reserved() / mb)}
+    except Exception:
+        return {}
 
 
 def exportar_paginas(pdf: Path, carpeta: Path) -> list[Path]:
@@ -115,12 +135,13 @@ def ordenar(textos: list[str], cajas: list[list[float]], ancho: float) -> list[s
     return [f[4] for f in filas]
 
 
-def crear_lector(aplanador_propio: bool):
+def crear_lector(umbral: float | None = None):
     if os.environ.get("PRUEBA_SIN_PADDLE"):           # solo para probar el script sin PaddleOCR
         return None
     from paddleocr import PaddleOCR
+    extra = {"text_det_box_thresh": umbral} if umbral is not None else {}
     return PaddleOCR(lang="es", device="gpu:0", use_doc_orientation_classify=False,
-                     use_doc_unwarping=aplanador_propio, use_textline_orientation=False)
+                     use_doc_unwarping=False, use_textline_orientation=False, **extra)
 
 
 def leer_pagina(lector, png: Path, carpeta_json: Path) -> dict:
@@ -147,7 +168,12 @@ def leer_pagina(lector, png: Path, carpeta_json: Path) -> dict:
 
 
 def main() -> None:
-    pedido = [a for a in sys.argv[1:] if not a.startswith("--")]
+    args, umbral = sys.argv[1:], None
+    if "--umbral" in args:
+        i = args.index("--umbral")
+        umbral = float(args[i + 1])
+        del args[i:i + 2]
+    pedido = [a for a in args if not a.startswith("--")]
     variantes = pedido[0].split(",") if pedido else list(VARIANTES)
     solo = pedido[1].split(",") if len(pedido) > 1 else None
     fuentes = {"sin-aplanar": ultima_corrida("_v0.4.4-sin-aplanar"), "aplanado": ultima_corrida("_v0.4.4")}
@@ -157,20 +183,18 @@ def main() -> None:
     print(f"Banco con PaddleOCR. Resultados en {corrida}")
     for clave, ruta in fuentes.items():
         print(f"  páginas {clave}: {ruta.name}")
-    resumen: dict = {"fuentes": {k: v.name for k, v in fuentes.items()}}
+    resumen: dict = {"fuentes": {k: v.name for k, v in fuentes.items()}, "umbral_detector": umbral}
     try:
         import paddle, paddleocr
         resumen["entorno"] = {"paddle": paddle.__version__, "paddleocr": paddleocr.__version__,
                               "python": sys.version.split()[0]}
     except Exception:
         resumen["entorno"] = {"python": sys.version.split()[0]}
-    lectores: dict[bool, object] = {}
-    for variante in variantes:
-        fuente, aplanador_propio = VARIANTES[variante]
-        if aplanador_propio not in lectores:
-            print(f"  cargando PaddleOCR (aplanador propio: {'sí' if aplanador_propio else 'no'})…", flush=True)
-            lectores[aplanador_propio] = crear_lector(aplanador_propio)
-        lector = lectores[aplanador_propio]
+    print("  cargando PaddleOCR (un solo lector)…", flush=True)
+    lector = crear_lector(umbral)
+    for base in variantes:
+        fuente = VARIANTES[base]
+        variante = base if umbral is None else f"{base}_umbral{umbral:g}"
         resumen[variante] = {}
         for m in muestras:
             if solo and m["nombre"] not in solo:
@@ -214,7 +238,7 @@ def main() -> None:
                 "errores": [p for p in por_pagina if p["error"]], **vram, "por_pagina": por_pagina}
             print(f"  {variante} / {m['nombre']}: {len(paginas)} páginas, {palabras} palabras, "
                   f"{segundos:.0f} s ({segundos / max(len(paginas), 1):.1f} s por página), "
-                  f"VRAM pico {vram['vram_pico_mb']} MB, {len(resumen[variante][m['nombre']]['errores'])} errores", flush=True)
+                  f"VRAM pico {vram['vram_pico_mb']} MB (Paddle usa {vram.get('paddle_usada_pico_mb', '?')} MB), {len(resumen[variante][m['nombre']]['errores'])} errores", flush=True)
             (corrida / "resumen.json").write_text(json.dumps(resumen, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"Listo. Resumen: {corrida / 'resumen.json'}")
 
