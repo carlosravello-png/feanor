@@ -12,7 +12,11 @@ lo usa como dependencia y lo envuelve con tres cosas propias:
 """
 from __future__ import annotations
 
+import contextlib
+import io
+import os
 import tempfile
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
@@ -121,45 +125,99 @@ def aplanar_imagen(ruta_png: Path, carpeta_tmp: Path) -> tuple[np.ndarray, Resul
 
 
 # --------------------------------------------------------------------- un PDF
+def _procesar_pagina(args: tuple[int, str, str, bool]) -> tuple[int, bytes, dict]:
+    """Trabajo de una página, pensado para correr en un proceso aparte.
+
+    Recibe el número de página, la ruta de su PNG, una carpeta temporal propia
+    y si hay que intentar aplanarla. Devuelve la imagen final codificada en PNG
+    y el resultado como diccionario (los procesos se pasan datos simples).
+    """
+    i, ruta_png, carpeta, intentar = args
+    png, tmp = Path(ruta_png), Path(carpeta)
+    if intentar:
+        # page-dewarp escribe mucho en pantalla; con varias páginas a la vez se
+        # mezcla y no se entiende. Se silencia y se informa al final de cada página.
+        with contextlib.redirect_stdout(io.StringIO()):
+            img, res = aplanar_imagen(png, tmp)
+    else:
+        img = cv2.imread(str(png), cv2.IMREAD_GRAYSCALE)
+        res = ResultadoPagina(0, False, 0, "no pedida")
+    res.pagina = i
+    # Señal de calidad sobre la imagen que va al OCR
+    res.curva_p90 = curva_p90(img)
+    avisos = []
+    if res.motivo.startswith(("pocas líneas", "page-dewarp")):
+        avisos.append(res.motivo)
+    if res.curva_p90 is not None and res.curva_p90 >= UMBRAL_CURVA:
+        avisos.append(f"líneas todavía curvas junto al lomo (curva {res.curva_p90} ≥ {UMBRAL_CURVA})")
+    res.revisar = bool(avisos)
+    res.motivo_revision = "; ".join(avisos)
+    ok, buf = cv2.imencode(".png", img)
+    return i, buf.tobytes(), asdict(res)
+
+
+def nucleos_por_defecto() -> int:
+    """Todos los núcleos menos uno, para no congelar la computadora.
+
+    Tope de 8: cada página aplanada ocupa varios cientos de MB de memoria
+    mientras se procesa.
+    """
+    return max(1, min((os.cpu_count() or 2) - 1, 8))
+
+
 def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
-                paginas: list[int] | None = None) -> list[ResultadoPagina]:
+                paginas: list[int] | None = None, nucleos: int | None = None) -> list[ResultadoPagina]:
     """Aplana las páginas de `entrada` y escribe un PDF de imágenes en `salida`.
 
     `paginas`: números del visor (desde 1) que se intentan aplanar; las demás
     pasan tal cual. Si es None, se intenta con todas.
+    `nucleos`: cuántas páginas se procesan a la vez (por defecto, todos los
+    núcleos menos uno, con tope de 8).
     """
     entrada, salida = Path(entrada), Path(salida)
+    nucleos = nucleos or nucleos_por_defecto()
     doc = fitz.open(entrada)
-    nuevo = fitz.open()
-    resultados: list[ResultadoPagina] = []
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
+        # 1. Rasterizar todas las páginas (rápido, en serie)
+        tareas = []
         for i, pagina in enumerate(doc, start=1):
             png = tmp / f"p{i:04d}.png"
             pagina.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY).save(png)
-            if paginas is not None and i not in paginas:
-                img = cv2.imread(str(png), cv2.IMREAD_GRAYSCALE)
-                res = ResultadoPagina(i, False, 0, "no pedida")
-            else:
-                img, res = aplanar_imagen(png, tmp)
-                res.pagina = i
-            # Señal de calidad sobre la imagen que va al OCR
-            res.curva_p90 = curva_p90(img)
-            avisos = []
-            if res.motivo.startswith(("pocas líneas", "page-dewarp")):
-                avisos.append(res.motivo)
-            if res.curva_p90 is not None and res.curva_p90 >= UMBRAL_CURVA:
-                avisos.append(f"líneas todavía curvas junto al lomo (curva {res.curva_p90} ≥ {UMBRAL_CURVA})")
-            res.revisar = bool(avisos)
-            res.motivo_revision = "; ".join(avisos)
-            resultados.append(res)
-            print(f"  página {i}: {res.motivo}" + (f"  [REVISAR: {res.motivo_revision}]" if res.revisar else ""))
-            ok, buf = cv2.imencode(".png", img)
-            alto, ancho = img.shape
-            hoja = nuevo.new_page(width=ancho * 72 / dpi, height=alto * 72 / dpi)
-            hoja.insert_image(hoja.rect, stream=buf.tobytes())
+            propia = tmp / f"t{i:04d}"
+            propia.mkdir()
+            tareas.append((i, str(png), str(propia), paginas is None or i in paginas))
+        # 2. Aplanar y medir, varias páginas a la vez
+        print(f"  {len(tareas)} páginas, {nucleos} a la vez")
+        hechas: dict[int, tuple[bytes, dict]] = {}
+        if nucleos == 1:
+            iterador = map(_procesar_pagina, tareas)
+            for i, img, res in iterador:
+                hechas[i] = (img, res)
+                _avisar(res)
+        else:
+            with ProcessPoolExecutor(max_workers=nucleos) as pool:
+                futuros = [pool.submit(_procesar_pagina, t) for t in tareas]
+                for f in as_completed(futuros):
+                    i, img, res = f.result()
+                    hechas[i] = (img, res)
+                    _avisar(res)
+    # 3. Armar el PDF en el orden original
+    nuevo = fitz.open()
+    resultados = []
+    for i in sorted(hechas):
+        img_png, res = hechas[i]
+        alto, ancho = cv2.imdecode(np.frombuffer(img_png, np.uint8), cv2.IMREAD_GRAYSCALE).shape
+        hoja = nuevo.new_page(width=ancho * 72 / dpi, height=alto * 72 / dpi)
+        hoja.insert_image(hoja.rect, stream=img_png)
+        resultados.append(ResultadoPagina(**res))
     nuevo.save(salida, deflate=True)
     return resultados
+
+
+def _avisar(res: dict) -> None:
+    print(f"  página {res['pagina']}: {res['motivo']}"
+          + (f"  [REVISAR: {res['motivo_revision']}]" if res["revisar"] else ""), flush=True)
 
 
 def resultados_a_dict(resultados: list[ResultadoPagina]) -> list[dict]:

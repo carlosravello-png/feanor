@@ -79,6 +79,7 @@ aplanar-libro "libro.pdf" --paginas pares        # aplanar solo las pares (o: im
 aplanar-libro "libro.pdf" --solo aplanar         # un solo paso: aplanar | leer | markdown
 aplanar-libro "articulo.pdf" --modo auto         # documentos a dos columnas
 aplanar-libro "book.pdf" --idioma eng            # otro idioma (uno solo, no mezclar)
+aplanar-libro "libro.pdf" --nucleos 4            # páginas que se aplanan a la vez (por defecto: núcleos − 1, máx. 8)
 ```
 
 ## Límites conocidos
@@ -93,7 +94,7 @@ aplanar-libro "book.pdf" --idioma eng            # otro idioma (uno solo, no mez
 - **Limpieza conservadora:** una letra suelta junto a una línea corta (un final de párrafo) no se borra. Una palabra cortada entre dos páginas no se une.
 - **Modo `libro`:** desordena documentos a dos columnas. Para esos, `--modo auto`.
 - **Números, símbolos y DOI:** el OCR los confunde (`I`/`1`, `T`/`7`, `&`, `Ω`). **El OCR sirve para leer y buscar; las cifras y las citas se verifican siempre en la imagen.**
-- **Lento:** aplanar cuesta unos 25–30 segundos por página curva.
+- **Lento sin JAX:** aplanar cuesta unos 25–30 segundos por página curva y por núcleo. Con JAX instalado (`python -m pip install "jax[cpu]"`), page-dewarp optimiza con derivadas en lugar de tanteo y baja a unos 4 segundos por página, con una calidad de OCR equivalente en las pruebas. Desde la versión 0.3.0 además se procesan varias páginas a la vez.
 - **Archivos pesados:** `libro_plano.pdf` puede ocupar mucho, porque guarda imágenes sin pérdida.
 
 ## Licencia

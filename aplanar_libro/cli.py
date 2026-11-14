@@ -34,6 +34,8 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--modo", default="libro", choices=["libro", "auto"],
                    help="libro = un solo bloque de texto; auto = deja que Tesseract busque columnas")
     p.add_argument("--dpi", type=int, default=300)
+    p.add_argument("--nucleos", type=int, default=None,
+                   help="páginas que se aplanan a la vez (por defecto, todos los núcleos menos uno, máx. 8)")
     a = p.parse_args(argv)
 
     base = a.pdf.with_suffix("")
@@ -51,7 +53,7 @@ def main(argv: list[str] | None = None) -> None:
     resultados = None
     if a.solo in (None, "aplanar"):
         print("Paso 1: aplanar")
-        resultados = resultados_a_dict(aplanar_pdf(a.pdf, plano, dpi=a.dpi, paginas=paginas))
+        resultados = resultados_a_dict(aplanar_pdf(a.pdf, plano, dpi=a.dpi, paginas=paginas, nucleos=a.nucleos))
         informe.write_text(json.dumps(resultados, ensure_ascii=False, indent=2), encoding="utf-8")
     if a.solo in (None, "leer"):
         print("Paso 2: leer (OCR)")

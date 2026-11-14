@@ -54,3 +54,15 @@ Se calcula sobre la misma imagen que va al OCR.
 - **Son 14 páginas de un solo libro.** El umbral es provisional hasta medirlo con otros libros.
 - **El modelo de Tesseract cambia qué páginas salen malas.** Las imágenes que van al OCR resultaron idénticas en los dos entornos (diferencia máxima de 1 nivel de gris por píxel). Aun así, la página 14 salió casi limpia con `tessdata_fast` (entorno de desarrollo) y mala con `tessdata` (PC del autor). Por eso B no se pudo comparar con justicia en la 14. Hipótesis sin probar: el modelo `fast` u otro modelo lee mejor las líneas con resto de curva.
 - **A mide la forma de las líneas, no los errores del OCR.** Una página puede salir mal por sombra o por baja resolución con las líneas rectas, y A no la verá.
+
+## Nota: con JAX cambia el aplanado y la medida (14/11/2026)
+
+Con JAX instalado, page-dewarp usa otro optimizador (L-BFGS-B con derivadas en vez de Powell): unas 8 veces más rápido y con mejor ajuste (objetivo final 0,0052 frente a 0,0078 en la página 8). La curva medida después de aplanar cambia:
+
+| Pág. | Etiqueta | Curva con Powell | Curva con JAX |
+|---|---|---|---|
+| 4 | limpia | 0,76 (marcada) | bajo 0,55 (no marcada) |
+| 8 | mala | 1,06 | 0,68 |
+| 14 | mala | 0,66 | 0,70 |
+
+Con JAX y el mismo umbral de 0,55, se marcan la 2, la 8 y la 14, sin la falsa alarma de la 4. La calidad del OCR (Tesseract en el entorno de desarrollo, 6 páginas pares) fue equivalente: palabras en minúscula válidas entre 95 y 99 % con los dos optimizadores. Esto es una medida más sobre la misma muestra; no cambia la salvedad de arriba.

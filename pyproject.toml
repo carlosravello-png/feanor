@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aplanar-libro"
-version = "0.2.1"
+version = "0.3.0"
 description = "Aplana páginas curvas de libros escaneados, pasa OCR en español y genera Markdown."
 readme = "README.md"
 license = "MIT"
@@ -17,6 +17,11 @@ dependencies = [
   "numpy>=1.24",
   "msgspec>=0.18",
 ]
+
+[project.optional-dependencies]
+# JAX hace que page-dewarp optimice con derivadas (L-BFGS-B) en vez de tanteo
+# (Powell): unas 8 veces más rápido al aplanar. Sin JAX, page-dewarp usa SciPy.
+rapido = ["jax[cpu]"]
 
 [project.scripts]
 aplanar-libro = "aplanar_libro.cli:main"
