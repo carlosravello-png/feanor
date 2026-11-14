@@ -194,6 +194,7 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
     """Escribe el texto de `entrada` en `salida` (.md). Devuelve un resumen."""
     avisos: dict[int, str] = {}
     origenes = {r["pagina"]: (r.get("origen"), r.get("parte", "simple")) for r in resultados or []}
+    lineas = {r["pagina"]: r.get("lineas") or 0 for r in resultados or []}
     for r in resultados or []:
         if r.get("revisar"):
             avisos[r["pagina"]] = r.get("motivo_revision") or r["motivo"]
@@ -219,6 +220,14 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
             texto = limpiar(texto, documento)
         if not texto:
             vacias += 1
+        # Red de seguridad: si el paso 1 contó líneas de texto en la página y
+        # el OCR sacó menos palabras que líneas, las dos cuentas no cuadran y
+        # la página no pasa callada, sea cual sea la causa.
+        palabras = len(texto.split())
+        if palabras < lineas.get(i, 0):
+            aviso = (f"se contaron {lineas[i]} líneas de texto pero salieron {palabras} palabras: "
+                     "lectura fallida; ver la imagen")
+            avisos[i] = f"{avisos[i]}; {aviso}" if i in avisos else aviso
         partes.append(f"<!-- página {i} del visor -->")
         origen, parte = origenes.get(i, (None, "simple"))
         if origen and parte in ("izquierda", "derecha"):

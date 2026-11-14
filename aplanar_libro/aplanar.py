@@ -9,12 +9,17 @@ lo usa como dependencia y lo envuelve con tres cosas propias:
 2. Un recorte automático que quita la basura que deja el aplanado en los bordes.
 3. Una regla de calidad: si la página tiene pocas líneas de texto, no se aplana
    (con poco texto el ajuste deforma la página en vez de enderezarla).
+4. Una comprobación del resultado: la página aplanada y la original se leen
+   con Tesseract en una pasada rápida, y si la aplanada se lee claramente
+   peor (menos del 80 % de las palabras), se usa la original.
 """
 from __future__ import annotations
 
 import contextlib
 import io
 import os
+import shutil
+import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
@@ -28,13 +33,21 @@ import numpy as np
 import page_dewarp.image as _pdi
 from page_dewarp.options import Config
 
-from .calidad import UMBRAL_CURVA, curva_p90
+from .calidad import TINTA_MINIMA, UMBRAL_CURVA, curva_p90
 from .pliegos import en_blanco, preparar
 
 # Con menos líneas de texto que esto, la página no se aplana.
 MIN_LINEAS = 8
 # Cuánto se agranda el recuadro de salida de page-dewarp (8 %).
 AMPLIACION = 1.08
+# Lectura rápida de comprobación: escala de la imagen y confianza mínima
+# (de 0 a 100, la que da Tesseract) para contar una palabra como legible.
+ESCALA_LECTURA = 0.5
+CONFIANZA_LEGIBLE = 60
+# La lectura rápida tiene ruido: dos lecturas de la misma página difieren en
+# unas pocas palabras. La aplanada solo se descarta si lee menos que esta
+# fracción de lo que lee la original.
+MARGEN_LECTURA = 0.8
 
 
 @dataclass
@@ -48,6 +61,8 @@ class ResultadoPagina:
     motivo_revision: str = ""
     origen: int = 0                  # página del PDF original de la que sale
     parte: str = "simple"            # simple | izquierda | derecha | girada | blanco
+    lectura_original: int | None = None   # palabras legibles antes de aplanar (pasada rápida)
+    lectura_aplanada: int | None = None   # palabras legibles después de aplanar
 
 
 # ---------------------------------------------------------------- page-dewarp
@@ -152,7 +167,7 @@ def _evaluar(img: np.ndarray, res: ResultadoPagina) -> tuple[bytes, dict]:
     avisos = []
     if res.parte == "girada":
         avisos.append("página girada 90°: la endereza el OCR, pero no se aplanó; revisar el orden del texto")
-    if res.motivo.startswith(("pocas líneas", "page-dewarp")):
+    if res.motivo.startswith(("pocas líneas", "page-dewarp", "aplanada, pero")):
         avisos.append(res.motivo)
     if res.curva_p90 is not None and res.curva_p90 >= UMBRAL_CURVA:
         avisos.append(f"líneas todavía curvas junto al lomo (curva {res.curva_p90} ≥ {UMBRAL_CURVA})")
@@ -162,7 +177,53 @@ def _evaluar(img: np.ndarray, res: ResultadoPagina) -> tuple[bytes, dict]:
     return buf.tobytes(), asdict(res)
 
 
-def _procesar_pagina(args: tuple[int, str, str, bool]) -> tuple[int, list[tuple[bytes, dict]]]:
+def _tesseract() -> str | None:
+    """Ruta de Tesseract: en el PATH o en su carpeta habitual de Windows."""
+    ruta = shutil.which("tesseract")
+    if ruta:
+        return ruta
+    habitual = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+    return str(habitual) if habitual.exists() else None
+
+
+def palabras_legibles(gris: np.ndarray, carpeta: Path, idioma: str = "spa") -> int | None:
+    """Cuántas palabras lee Tesseract con confianza en una pasada rápida.
+
+    Sirve para comparar dos versiones de la misma página, no como medida de
+    calidad absoluta: la imagen se reduce a la mitad y solo se cuentan las
+    palabras con al menos dos letras y confianza de 60 o más. Devuelve None si
+    Tesseract no está o falla; en ese caso no se compara nada.
+    """
+    exe = _tesseract()
+    if exe is None:
+        return None
+    chica = cv2.resize(igualar_luz(gris), None, fx=ESCALA_LECTURA, fy=ESCALA_LECTURA,
+                       interpolation=cv2.INTER_AREA)
+    png = Path(carpeta) / "lectura.png"
+    cv2.imwrite(str(png), chica)
+    try:
+        r = subprocess.run([exe, str(png), "-", "-l", idioma, "--psm", "6", "tsv"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=120)
+    except Exception:
+        return None
+    if r.returncode != 0:
+        return None
+    n = 0
+    for linea in r.stdout.splitlines()[1:]:
+        campos = linea.split("\t")
+        if len(campos) != 12:
+            continue
+        try:
+            confianza = float(campos[10])
+        except ValueError:
+            continue
+        if confianza >= CONFIANZA_LEGIBLE and sum(c.isalpha() for c in campos[11]) >= 2:
+            n += 1
+    return n
+
+
+def _procesar_pagina(args: tuple[int, str, str, bool, str]) -> tuple[int, list[tuple[bytes, dict]]]:
     """Trabajo de una página del PDF original, pensado para correr en un proceso aparte.
 
     Recibe el número de página, la ruta de su PNG, una carpeta temporal propia
@@ -170,7 +231,7 @@ def _procesar_pagina(args: tuple[int, str, str, bool]) -> tuple[int, list[tuple[
     pliego o simple); un pliego da dos páginas. Devuelve, por cada página que
     sale, la imagen final codificada en PNG y su resultado como diccionario.
     """
-    i, ruta_png, carpeta, intentar = args
+    i, ruta_png, carpeta, intentar, idioma = args
     png, tmp = Path(ruta_png), Path(carpeta)
     gris = cv2.imread(str(png), cv2.IMREAD_GRAYSCALE)
     salidas = []
@@ -197,10 +258,21 @@ def _procesar_pagina(args: tuple[int, str, str, bool]) -> tuple[int, list[tuple[
             cv2.imwrite(str(media), cv2.copyMakeBorder(img, m, m, m, m, cv2.BORDER_CONSTANT, value=fondo))
             # page-dewarp escribe mucho en pantalla; con varias páginas a la vez se
             # mezcla y no se entiende. Se silencia y se informa al final de cada página.
+            original = img
             with contextlib.redirect_stdout(io.StringIO()):
                 img, r = aplanar_imagen(media, tmp)
             res.aplanada, res.lineas, res.motivo = r.aplanada, r.lineas, r.motivo
-            if r.lineas == 0 and r.motivo.startswith("pocas líneas") and _tinta(img) < 0.02:
+            if r.aplanada:
+                # La salida no debe ser peor que la entrada: se leen las dos y,
+                # si la aplanada se lee claramente peor, se devuelve la original.
+                res.lectura_original = palabras_legibles(original, tmp, idioma)
+                res.lectura_aplanada = palabras_legibles(img, tmp, idioma)
+                if (res.lectura_original is not None and res.lectura_aplanada is not None
+                        and res.lectura_aplanada < MARGEN_LECTURA * res.lectura_original):
+                    img, res.aplanada = original, False
+                    res.motivo = (f"aplanada, pero se lee peor que la original "
+                                  f"({res.lectura_aplanada} < {res.lectura_original} palabras): se usa la original")
+            if r.lineas == 0 and r.motivo.startswith("pocas líneas") and _tinta(img) < TINTA_MINIMA:
                 res.motivo = "sin líneas de texto (figura o mitad vacía)"
         if parte != "blanco":
             img = igualar_luz(img)
@@ -237,7 +309,8 @@ def nucleos_por_defecto() -> int:
 
 
 def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
-                paginas: list[int] | None = None, nucleos: int | None = None) -> list[ResultadoPagina]:
+                paginas: list[int] | None = None, nucleos: int | None = None,
+                idioma: str = "spa") -> list[ResultadoPagina]:
     """Aplana las páginas de `entrada` y escribe un PDF de imágenes en `salida`.
 
     `paginas`: números de página del PDF original (desde 1) que se intentan
@@ -247,6 +320,8 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
     PDF de salida puede tener más páginas que el original.
     `nucleos`: cuántas páginas se procesan a la vez (por defecto, todos los
     núcleos menos uno, con tope de 8).
+    `idioma`: el de Tesseract, para la lectura rápida que compara cada página
+    aplanada con su original.
     """
     entrada, salida = Path(entrada), Path(salida)
     nucleos = nucleos or nucleos_por_defecto()
@@ -262,7 +337,7 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
             pagina.get_pixmap(dpi=dpis[i], colorspace=fitz.csGRAY).save(png)
             propia = tmp / f"t{i:04d}"
             propia.mkdir()
-            tareas.append((i, str(png), str(propia), paginas is None or i in paginas))
+            tareas.append((i, str(png), str(propia), paginas is None or i in paginas, idioma))
         # 2. Aplanar y medir, varias páginas a la vez
         print(f"  {len(tareas)} páginas, {nucleos} a la vez")
         hechas: dict[int, list[tuple[bytes, dict]]] = {}

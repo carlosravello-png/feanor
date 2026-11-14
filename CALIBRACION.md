@@ -66,3 +66,21 @@ Con JAX instalado, page-dewarp usa otro optimizador (L-BFGS-B con derivadas en v
 | 14 | mala | 0,66 | 0,70 |
 
 Con JAX y el mismo umbral de 0,55, se marcan la 2, la 8 y la 14, sin la falsa alarma de la 4. La calidad del OCR (Tesseract en el entorno de desarrollo, 6 páginas pares) fue equivalente: palabras en minúscula válidas entre 95 y 99 % con los dos optimizadores. Esto es una medida más sobre la misma muestra; no cambia la salvedad de arriba.
+
+## Banco de pruebas fijo (14/11/2026, versión 0.4.3)
+
+Desde la 0.4.3, cada cambio se mide contra el mismo material antes de darse por bueno. El material es privado (libros con derechos) y no está en el repositorio.
+
+| Material | Páginas | Palabras válidas 0.4.2 | 0.4.3 | Devueltas a la original | Páginas que no cuadran sin aviso: 0.4.2 → 0.4.3 |
+|---|---|---|---|---|---|
+| Tolkien, 14 páginas de escáner | 14 | 3238 | 3238 | 0 | 0 → 0 |
+| Tizard, 25 pliegos fotocopiados | 43 | 18 844 | 19 279 | 8 | 0 → 0 |
+| Hematología, 25 pliegos en foto | 46 | 4445 | 4589 | 8 | 6 → 0 |
+| Páginas problema, 5 pliegos en foto | 9 | 584 | 837 | 3 | 4 → 0 |
+
+«Palabras válidas»: palabras en minúscula de dos letras o más que existen en español según `wordfreq`. «No cuadra»: el paso 1 contó más líneas de texto que palabras sacó el OCR.
+
+- **Lo que no cambió:** el texto de las 93 páginas que la 0.4.3 no devolvió a la original es idéntico, carácter por carácter, al de la 0.4.2.
+- **El margen del 80 %** se eligió con este banco. Con comparación estricta (aplanada < original), el ruido de la lectura rápida devolvía a la original 33 de 38 páginas del Tizard y 5 de 14 del Tolkien. Con 80 % se devuelven 19 en total: 14 ganan palabras válidas y 5 pierden (la peor, de 61 a 16).
+- **Salvedad:** el margen está ajustado sobre este mismo material. Falta medirlo con un libro que no se haya usado para ajustar nada.
+

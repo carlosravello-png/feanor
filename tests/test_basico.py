@@ -183,3 +183,33 @@ def test_markdown_lleva_aviso(tmp_path):
     md = tmp_path / "a.md"
     pdf_a_markdown(pdf, md)
     assert "No usar como fuente de dosis" in md.read_text(encoding="utf-8")
+
+
+def test_pagina_con_lineas_y_sin_texto_se_marca(tmp_path):
+    """Una página con líneas de texto de la que no salió texto no pasa callada."""
+    doc = fitz.open()
+    doc.new_page()                                   # sin texto
+    doc.new_page().insert_text((72, 72), "Una página con texto de sobra para no marcarse.")
+    doc.new_page()                                   # sin texto y sin líneas: en blanco
+    pdf = tmp_path / "x.pdf"
+    doc.save(pdf)
+    base = {"aplanada": True, "lineas": 20, "motivo": "aplanada", "revisar": False, "motivo_revision": ""}
+    resultados = [{**base, "pagina": 1}, {**base, "pagina": 2, "lineas": 1},
+                  {**base, "pagina": 3, "lineas": 0}]
+    resumen = pdf_a_markdown(pdf, tmp_path / "x.md", resultados)
+    assert resumen["a_revisar"] == [1]
+    assert "se contaron 20 líneas de texto pero salieron 0 palabras" in (tmp_path / "x.md").read_text(encoding="utf-8")
+
+
+def test_lectura_rapida_distingue_texto_de_blanco(tmp_path):
+    """La comprobación del aplanado lee más palabras en una página con texto que en una vacía."""
+    from aplanar_libro.aplanar import palabras_legibles, _tesseract
+    if _tesseract() is None:
+        return                                       # sin Tesseract no hay nada que comparar
+    con_texto = np.full((1400, 2000), 255, np.uint8)
+    for k in range(12):
+        cv2.putText(con_texto, "la sangre del perro y del gato se estudia con cuidado",
+                    (60, 120 + 100 * k), cv2.FONT_HERSHEY_SIMPLEX, 1.6, 0, 3)
+    vacia = np.full((1400, 2000), 255, np.uint8)
+    assert palabras_legibles(con_texto, tmp_path) > 50
+    assert palabras_legibles(vacia, tmp_path) == 0

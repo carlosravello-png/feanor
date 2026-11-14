@@ -16,6 +16,9 @@ import cv2
 import numpy as np
 
 UMBRAL_CURVA = 0.55
+# Fracción de tinta: por debajo, una página sin líneas se toma por figura o
+# mitad vacía.
+TINTA_MINIMA = 0.02
 N_TROZOS = 8
 
 

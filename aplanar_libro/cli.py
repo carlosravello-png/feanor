@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> None:
     if a.solo in (None, "aplanar"):
         print("Paso 1: aplanar")
         t = time.perf_counter()
-        resultados = resultados_a_dict(aplanar_pdf(a.pdf, plano, dpi=a.dpi, paginas=paginas, nucleos=a.nucleos))
+        resultados = resultados_a_dict(aplanar_pdf(a.pdf, plano, dpi=a.dpi, paginas=paginas, nucleos=a.nucleos, idioma=a.idioma))
         informe.write_text(json.dumps(resultados, ensure_ascii=False, indent=2), encoding="utf-8")
         medir("aplanar", t)
     if a.solo in (None, "leer"):
