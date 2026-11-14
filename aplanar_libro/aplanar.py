@@ -24,6 +24,8 @@ import numpy as np
 import page_dewarp.image as _pdi
 from page_dewarp.options import Config
 
+from .calidad import UMBRAL_CURVA, curva_p90
+
 # Con menos líneas de texto que esto, la página no se aplana.
 MIN_LINEAS = 8
 # Cuánto se agranda el recuadro de salida de page-dewarp (8 %).
@@ -36,6 +38,9 @@ class ResultadoPagina:
     aplanada: bool
     lineas: int            # líneas de texto que encontró page-dewarp
     motivo: str            # por qué se aplanó o no
+    curva_p90: float | None = None   # resto de curva junto al lomo (ver calidad.py)
+    revisar: bool = False            # marcar en el Markdown para revisión a mano
+    motivo_revision: str = ""
 
 
 # ---------------------------------------------------------------- page-dewarp
@@ -138,8 +143,17 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
             else:
                 img, res = aplanar_imagen(png, tmp)
                 res.pagina = i
+            # Señal de calidad sobre la imagen que va al OCR
+            res.curva_p90 = curva_p90(img)
+            avisos = []
+            if res.motivo.startswith(("pocas líneas", "page-dewarp")):
+                avisos.append(res.motivo)
+            if res.curva_p90 is not None and res.curva_p90 >= UMBRAL_CURVA:
+                avisos.append(f"líneas todavía curvas junto al lomo (curva {res.curva_p90} ≥ {UMBRAL_CURVA})")
+            res.revisar = bool(avisos)
+            res.motivo_revision = "; ".join(avisos)
             resultados.append(res)
-            print(f"  página {i}: {res.motivo}")
+            print(f"  página {i}: {res.motivo}" + (f"  [REVISAR: {res.motivo_revision}]" if res.revisar else ""))
             ok, buf = cv2.imencode(".png", img)
             alto, ancho = img.shape
             hoja = nuevo.new_page(width=ancho * 72 / dpi, height=alto * 72 / dpi)

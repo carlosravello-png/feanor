@@ -40,3 +40,82 @@ def test_markdown_marca_paginas_y_avisos(tmp_path):
     assert "<!-- página 1 del visor -->" in texto and "<!-- página 2 del visor -->" in texto
     assert "REVISAR A MANO: pocas líneas" in texto
     assert res["a_revisar"] == [2]
+
+
+LARGA1 = "esta es una línea larga del cuerpo del texto, de más de cuarenta caracteres"
+LARGA2 = "y esta es otra línea igual de larga que sigue en el mismo párrafo del libro"
+
+
+def test_limpiar_quita_ruido_y_folio():
+    from aplanar_libro.markdown import limpiar
+    s = limpiar("\n".join(["18", "INTRODUCCIÓN", LARGA1, "|", "—", LARGA2, "1S"]))
+    assert s.split("\n") == ["INTRODUCCIÓN", LARGA1, LARGA2]
+
+
+def test_indice_que_termina_en_numero_no_pierde_datos(tmp_path):
+    """Auditoría 14/11/2026: el folio borraba el último número de un índice."""
+    from aplanar_libro.markdown import es_indice
+    indice = "\n".join(["ÍNDICE", "Prefacio", "11", "I.", "La infancia de Túrin", "31",
+                        "XIII.", "La llegada de Túrin a Brethil", "167"])
+    assert es_indice(indice)
+    pdf = tmp_path / "i.pdf"
+    doc = fitz.open()
+    hoja = doc.new_page()
+    for k, linea in enumerate(indice.split("\n")):
+        hoja.insert_text((72, 72 + 20 * k), linea)
+    doc.save(pdf)
+    md = tmp_path / "i.md"
+    res = pdf_a_markdown(pdf, md)
+    texto = md.read_text(encoding="utf-8")
+    assert "167" in texto and "11" in texto          # ningún número se pierde
+    assert res["indices"] == [1] and "página tipo índice" in texto
+
+
+def test_nombre_cortado_se_une_y_compuesto_se_conserva():
+    """Auditoría 14/11/2026: quedaban «Si-rion» y «Féa-nor»."""
+    from aplanar_libro.markdown import limpiar
+    doc = "\n".join(["donde nacía el río Si-", "rion, en la cara oriental de las montañas",
+                     "el hermanastro de Féa-", "nor), quien era considerado señor supremo",
+                     "Túrin nació en Dor-lómin, en el invierno", "vivió en Dor-", "lómin durante años",
+                     "publicadas anterior-", "mente por separado", "de los El -", "fos al mismo tiempo"])
+    s = limpiar(doc, doc)
+    assert "Sirion," in s and "Si-rion" not in s
+    assert "Féanor)," in s
+    assert s.count("Dor-lómin") == 2 and "Dorlómin" not in s
+    assert "anteriormente" in s
+    assert "de los Elfos\nal mismo" in s                      # espacio antes del guion
+
+
+def test_letra_suelta_no_rompe_la_union():
+    """Auditoría 14/11/2026: «escri-» + «l» + «bió» daba «escril»."""
+    from aplanar_libro.markdown import limpiar
+    s = limpiar("\n".join(["pasaje citado de una larga carta que mi padre escri-", "l",
+                           "bió en 1951, tres años antes de la publicación de la obra",
+                           "conocido como tal. Por otro lado, tal como mi pa-", "1",
+                           "dre observó en el mismo lugar, la historia forma parte"]))
+    assert "padre escribió\nen 1951" in s and "escril" not in s
+    assert "mi padre\nobservó" in s
+
+
+def test_letra_suelta_en_indice_se_conserva():
+    from aplanar_libro.markdown import limpiar
+    s = limpiar("\n".join(["I.", "La infancia", "V.", "Túrin en Doriath", "X.", "Nargothrond"]))
+    assert "V." in s and "X." in s
+
+
+def test_curva_recta_vs_curva():
+    from aplanar_libro.calidad import curva_p90
+    recta = np.full((1400, 1100), 255, np.uint8)
+    curva = recta.copy()
+    for k in range(12):
+        y = 200 + 90 * k
+        cv2.putText(recta, "linea de prueba bastante larga %02d" % k, (60, y), cv2.FONT_HERSHEY_SIMPLEX, 1.2, 0, 2)
+        # misma línea, con el extremo derecho levantado (resto de curva)
+        texto = np.full((60, 1100), 255, np.uint8)
+        cv2.putText(texto, "linea de prueba bastante larga %02d" % k, (60, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.2, 0, 2)
+        for x in range(1100):
+            sube = min(int(max(0, x - 350) ** 2 / 1500), 40)
+            col = texto[:, x]
+            curva[y - 45 - sube:y + 15 - sube, x] = np.minimum(curva[y - 45 - sube:y + 15 - sube, x], col)
+    assert curva_p90(recta) < 0.55
+    assert curva_p90(curva) >= 0.55

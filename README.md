@@ -69,7 +69,7 @@ Deja al lado del original:
 |---|---|
 | `libro_plano.pdf` | Las páginas aplanadas, como imágenes |
 | `libro_ocr.pdf` | El PDF con texto seleccionable. Es el que se usa para verificar folios |
-| `libro_ocr.md` | El texto en Markdown, para trabajar |
+| `libro_ocr.md` | El texto en Markdown, para trabajar. Cada página lleva el número del visor. En el cuerpo del libro se quita el ruido de la sombra del lomo y los folios, y se unen las palabras cortadas con guion. Las páginas tipo índice quedan sin limpiar |
 | `libro_informe.json` | Qué páginas se aplanaron y por qué no las demás |
 
 Opciones:
@@ -83,10 +83,16 @@ aplanar-libro "book.pdf" --idioma eng            # otro idioma (uno solo, no mez
 
 ## Límites conocidos
 
-- **Curva muy cerrada junto al lomo:** el aplanado puede dejar las primeras líneas todavía un poco curvas, y entonces se pierde alguna palabra al final. Hoy la librería **no lo detecta sola**.
+- **Curva muy cerrada junto al lomo:** el aplanado puede dejar las primeras líneas todavía un poco curvas, y entonces se pierde alguna palabra al final. Desde la versión 0.2.0 la librería mide ese resto de curva y marca la página con «REVISAR A MANO». En las 14 páginas de prueba marcó las tres malas y dio una falsa alarma. El umbral es provisional: ver [CALIBRACION.md](CALIBRACION.md).
+- **Errores sin curva:** una página que sale mal por sombra o por baja resolución, con las líneas rectas, no se marca.
 - **Páginas con poco texto** (índices, portadas, páginas con figuras): no se aplanan.
+- **Índices:** es lo que peor sale. El OCR separa cada título de su número y lee mal los números romanos. La librería detecta las páginas tipo índice, no las limpia y las marca siempre con «REVISAR A MANO».
+- **Nombres con guion propio** («Gil-galad»): se conservan solo si en algún lugar del libro aparecen a mitad de línea. Si el único lugar donde aparecen está cortado justo en su guion, se unen mal («Gilgalad»).
+- **Tablas de datos:** una página con muchas líneas que son solo un número (una tabla, frecuente en libros de psicología) puede tomarse por índice. El error va en la dirección segura: queda sin limpiar y marcada.
+- **Limpieza conservadora:** una letra suelta junto a una línea corta (un final de párrafo) no se borra. Una palabra cortada entre dos páginas no se une.
 - **Modo `libro`:** desordena documentos a dos columnas. Para esos, `--modo auto`.
 - **Números, símbolos y DOI:** el OCR los confunde (`I`/`1`, `T`/`7`, `&`, `Ω`). **El OCR sirve para leer y buscar; las cifras y las citas se verifican siempre en la imagen.**
+- **Lento:** aplanar cuesta unos 25–30 segundos por página curva.
 - **Archivos pesados:** `libro_plano.pdf` puede ocupar mucho, porque guarda imágenes sin pérdida.
 
 ## Licencia

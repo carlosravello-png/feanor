@@ -55,12 +55,19 @@ def main(argv: list[str] | None = None) -> None:
         informe.write_text(json.dumps(resultados, ensure_ascii=False, indent=2), encoding="utf-8")
     if a.solo in (None, "leer"):
         print("Paso 2: leer (OCR)")
-        leer_pdf(plano if a.solo is None else a.pdf, ocr, idioma=a.idioma, modo=a.modo)
+        # Corrección 14/11/2026: con --solo leer se leía el PDF original aunque
+        # existiera el aplanado. Ahora se usa el aplanado si existe.
+        entrada = plano if plano.exists() else a.pdf
+        print(f"  entrada: {entrada.name}")
+        leer_pdf(entrada, ocr, idioma=a.idioma, modo=a.modo)
     if a.solo in (None, "markdown"):
         print("Paso 3: Markdown")
         if resultados is None and informe.exists():
             resultados = json.loads(informe.read_text(encoding="utf-8"))
-        resumen = pdf_a_markdown(ocr if a.solo is None else a.pdf, md, resultados)
+        # Misma corrección: con --solo markdown se usa el PDF con OCR si existe.
+        entrada = ocr if ocr.exists() else a.pdf
+        print(f"  entrada: {entrada.name}")
+        resumen = pdf_a_markdown(entrada, md, resultados)
         print(f"  {resumen['paginas']} páginas, {resumen['sin_texto']} sin texto, "
               f"revisar a mano: {resumen['a_revisar'] or 'ninguna'}")
 
