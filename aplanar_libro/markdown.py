@@ -1,7 +1,10 @@
 """Paso 3: pasar el PDF con texto a Markdown, página por página.
 
-Cada página va precedida de una marca con el número del VISOR, que no es el
-folio impreso del libro: para citar, el folio se lee en la imagen.
+Cada página va precedida de una marca con el número del VISOR y, si se pudo
+deducir, otra con el FOLIO IMPRESO (el número de página del libro, que es el
+que se cita). El folio se deduce por la secuencia de los números que el OCR
+leyó bien; cuando no se leyó en esa página, se dice «deducido» y se verifica
+en la imagen.
 Las páginas marcadas en el paso 1 llevan un aviso para revisarlas a mano.
 
 El texto del cuerpo pasa por una limpieza que no toca el OCR (ver `limpiar`).
@@ -111,6 +114,47 @@ def limpiar(texto: str, documento: str | None = None) -> str:
     return "\n".join(lineas)
 
 
+def _lecturas_de_folio(texto: str) -> list[int]:
+    """Números de 1 a 4 cifras en el encabezado (3 primeras líneas) o el pie (última)."""
+    lineas = [l.strip() for l in texto.splitlines() if l.strip()]
+    zona = lineas[:3] + lineas[-1:]
+    return [int(t) for l in zona for t in re.findall(r"(?<![\w.])\d{1,4}(?![\w.])", l)]
+
+
+def deducir_folios(textos: list[str], indices: list[int]) -> dict[int, tuple[int, str]]:
+    """Deduce el folio impreso de cada página por la secuencia.
+
+    El folio es el número de página del visor más un desfase constante. El
+    desfase se elige por votación entre los folios que el OCR leyó bien en el
+    encabezado o el pie; hacen falta al menos 3 votos y la mayoría. Las
+    páginas tipo índice no votan (sus números son del índice, no folios).
+
+    Devuelve {página del visor: (folio, estado)}, con estado «leído» si el OCR
+    leyó ese mismo número en la página, o «deducido» si no. Si no hay una
+    secuencia clara, devuelve {}.
+    """
+    votos: dict[int, int] = {}
+    lecturas: dict[int, list[int]] = {}
+    for i, texto in enumerate(textos, start=1):
+        if i in indices:
+            continue
+        lecturas[i] = _lecturas_de_folio(texto)
+        for n in set(lecturas[i]):
+            votos[n - i] = votos.get(n - i, 0) + 1
+    if not votos:
+        return {}
+    desfase, n_votos = max(votos.items(), key=lambda kv: kv[1])
+    if n_votos < 3 or n_votos * 2 <= sum(votos.values()):
+        return {}
+    folios = {}
+    for i in range(1, len(textos) + 1):
+        folio = i + desfase
+        if folio < 1:
+            continue
+        folios[i] = (folio, "leído" if folio in lecturas.get(i, []) else "deducido")
+    return folios
+
+
 def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = None,
                    limpieza: bool = True) -> dict:
     """Escribe el texto de `entrada` en `salida` (.md). Devuelve un resumen."""
@@ -129,10 +173,11 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
         "<!-- El OCR sirve para leer y buscar. Cifras, nombres y citas se verifican en la imagen. -->",
         "",
     ]
-    vacias, indices = 0, []
+    indices = [i for i, t in enumerate(textos, start=1) if es_indice(t)]
+    folios = deducir_folios(textos, indices)
+    vacias = 0
     for i, texto in enumerate(textos, start=1):
-        if es_indice(texto):
-            indices.append(i)
+        if i in indices:
             aviso = "página tipo índice: sin limpieza; los números se verifican en la imagen"
             avisos[i] = f"{aviso}; {avisos[i]}" if i in avisos else aviso
         elif limpieza:
@@ -140,6 +185,11 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
         if not texto:
             vacias += 1
         partes.append(f"<!-- página {i} del visor -->")
+        if i in folios:
+            folio, estado = folios[i]
+            como = ("leído en la página y coincide con la secuencia" if estado == "leído"
+                    else "deducido por la secuencia; verificar en la imagen")
+            partes.append(f"<!-- folio impreso: {folio} ({como}) -->")
         if i in avisos:
             partes.append(f"<!-- REVISAR A MANO: {avisos[i]} -->")
         partes.append("")
@@ -147,4 +197,5 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
         partes.append("")
     Path(salida).write_text("\n".join(partes), encoding="utf-8")
     return {"paginas": len(doc), "sin_texto": vacias, "indices": indices,
-            "a_revisar": sorted(avisos)}
+            "a_revisar": sorted(avisos),
+            "folios": {i: f for i, (f, _) in folios.items()}}

@@ -69,7 +69,7 @@ Deja al lado del original:
 |---|---|
 | `libro_plano.pdf` | Las páginas aplanadas, como imágenes |
 | `libro_ocr.pdf` | El PDF con texto seleccionable. Es el que se usa para verificar folios |
-| `libro_ocr.md` | El texto en Markdown, para trabajar. Cada página lleva el número del visor. En el cuerpo del libro se quita el ruido de la sombra del lomo y los folios, y se unen las palabras cortadas con guion. Las páginas tipo índice quedan sin limpiar |
+| `libro_ocr.md` | El texto en Markdown, para trabajar. Cada página lleva el número del visor y, si se pudo deducir, el folio impreso del libro. En el cuerpo del libro se quita el ruido de la sombra del lomo y los folios, y se unen las palabras cortadas con guion. Las páginas tipo índice quedan sin limpiar |
 | `libro_informe.json` | Qué páginas se aplanaron y por qué no las demás |
 
 Opciones:
@@ -89,6 +89,7 @@ aplanar-libro "book.pdf" --idioma eng            # otro idioma (uno solo, no mez
 - **Índices:** es lo que peor sale. El OCR separa cada título de su número y lee mal los números romanos. La librería detecta las páginas tipo índice, no las limpia y las marca siempre con «REVISAR A MANO».
 - **Nombres con guion propio** («Gil-galad»): se conservan solo si en algún lugar del libro aparecen a mitad de línea. Si el único lugar donde aparecen está cortado justo en su guion, se unen mal («Gilgalad»).
 - **Tablas de datos:** una página con muchas líneas que son solo un número (una tabla, frecuente en libros de psicología) puede tomarse por índice. El error va en la dirección segura: queda sin limpiar y marcada.
+- **Folio impreso:** se deduce suponiendo una sola numeración seguida. Si el libro cambia de numeración (romanos en las páginas preliminares, láminas sin numerar intercaladas), los folios deducidos después del cambio salen corridos. Los que dicen «deducido» se verifican en la imagen antes de citar.
 - **Limpieza conservadora:** una letra suelta junto a una línea corta (un final de párrafo) no se borra. Una palabra cortada entre dos páginas no se une.
 - **Modo `libro`:** desordena documentos a dos columnas. Para esos, `--modo auto`.
 - **Números, símbolos y DOI:** el OCR los confunde (`I`/`1`, `T`/`7`, `&`, `Ω`). **El OCR sirve para leer y buscar; las cifras y las citas se verifican siempre en la imagen.**

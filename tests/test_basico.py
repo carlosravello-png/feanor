@@ -119,3 +119,25 @@ def test_curva_recta_vs_curva():
             curva[y - 45 - sube:y + 15 - sube, x] = np.minimum(curva[y - 45 - sube:y + 15 - sube, x], col)
     assert curva_p90(recta) < 0.55
     assert curva_p90(curva) >= 0.55
+
+
+def test_folio_por_secuencia():
+    """Folios leídos 13, 14, 17 y 22 en las páginas 5, 6, 9 y 14 del visor; 18 leído como «1S»."""
+    from aplanar_libro.markdown import deducir_folios
+    textos = [LARGA1] * 14
+    textos[4] = "PREFACIO\n13\n" + LARGA1
+    textos[5] = "14\nPREFACIO\n" + LARGA1
+    textos[8] = "INTRODUCCIÓN\n17\n" + LARGA1
+    textos[9] = "1S\nINTRODUCCIÓN\n" + LARGA1
+    textos[12] = "INTRODUCCIÓN\n31\n" + LARGA1      # 21 mal leído: vota por otro desfase
+    textos[13] = "22\nINTRODUCCIÓN\n" + LARGA1
+    textos[0] = "ÍNDICE\nPrefacio\n11\nI.\n31\n47"   # índice: no vota
+    f = deducir_folios(textos, indices=[1])
+    assert f[5] == (13, "leído") and f[14] == (22, "leído")
+    assert f[10] == (18, "deducido") and f[13] == (21, "deducido")
+    assert f[3] == (11, "deducido") and f[1] == (9, "deducido")
+
+
+def test_sin_secuencia_no_inventa_folios():
+    from aplanar_libro.markdown import deducir_folios
+    assert deducir_folios([LARGA1, "7\n" + LARGA1, LARGA2], indices=[]) == {}
