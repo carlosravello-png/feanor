@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aplanar-libro"
-version = "0.4.4"
+version = "0.4.5"
 description = "Aplana páginas curvas de libros escaneados, pasa OCR en español y genera Markdown."
 readme = "README.md"
 license = "MIT"

@@ -227,3 +227,11 @@ def test_pliego_con_un_lado_vacio_tambien_se_parte():
     x = corte_de_pliego(pliego)
     assert x is not None and 0.38 * 1600 <= x < 860
     assert (pliego[:, :x] < 128).sum() == 0              # todo el texto quedó a la derecha
+
+
+def test_folio_con_guion_y_espacio_no_tumba_la_corrida():
+    """«66- » en el pie de página se lee como el folio 66 (falló en un libro de 511 páginas)."""
+    from aplanar_libro.markdown import _lecturas_de_folio
+    assert _lecturas_de_folio("texto de la página\nmás texto\notra línea\ny otra\n66- ") == [66]
+    assert _lecturas_de_folio("- 12 -\ntexto de la página\nmás texto\notra línea\nfin") == [12]
+    assert _lecturas_de_folio("texto\nmás texto\notra línea\ny otra\n66- .") == [66]

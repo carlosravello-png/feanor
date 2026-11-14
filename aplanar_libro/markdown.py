@@ -136,7 +136,11 @@ def _lecturas_de_folio(texto: str) -> list[int]:
     línea con texto («Capítulo 1», «fig. 1-4») no cuenta."""
     lineas = [l.strip() for l in texto.splitlines() if l.strip()]
     zona = lineas[:3] + lineas[-1:]
-    return [int(l.strip(".,;:—-|")) for l in zona if re.fullmatch(r"[.,;:—\-|\s]*\d{1,4}[.,;:—\-|\s]*", l)]
+    # Corrección 0.4.5: una línea con signos mezclados alrededor del número
+    # (por ejemplo «66- .») pasaba el filtro y luego no se podía convertir a número; la
+    # corrida entera se caía en el último paso. Ahora se toma solo la cifra.
+    return [int(re.search(r"\d{1,4}", l).group()) for l in zona
+            if re.fullmatch(r"[.,;:—\-|\s]*\d{1,4}[.,;:—\-|\s]*", l)]
 
 
 VECINDAD = 6   # páginas del visor dentro de las cuales dos lecturas se confirman
