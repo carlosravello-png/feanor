@@ -18,3 +18,5 @@ banco/corridas/
 banco/muestras/
 banco/versiones/
 banco/paddle_prueba/
+banco/analisis/
+banco/__pycache__/
