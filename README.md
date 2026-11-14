@@ -92,6 +92,8 @@ aplanar-libro "libro.pdf" --nucleos 4            # páginas que se aplanan a la 
 - **Páginas con poco texto** (índices, portadas, páginas con figuras): no se aplanan.
 - **Pliegos:** el corte se busca cerca del centro, en la franja vacía o en la sombra del lomo. Un pliego con una página casi vacía (una portada, el inicio de un capítulo) se deja entero si un lado no tiene texto.
 - **Páginas giradas 90°** (una tabla impresa de costado): se detectan y se marcan, pero no se enderezan bien. Se le pide a OCRmyPDF que las gire, y en la prueba no tuvo confianza suficiente para hacerlo. Hay que leerlas en la imagen.
+- **Folio al costado:** solo se buscan folios en el encabezado y el pie. Un libro que imprime el número de página en un recuadro al costado, a media altura, queda sin folios deducidos.
+- **Fotos de celular:** desde la versión 0.4.2 se iguala la luz (se quitan sombras y fondo gris) y las fotos se rasterizan a su resolución real. En una muestra de 25 pliegos fotografiados, las palabras válidas pasaron de 87,2 % a 89,7 %.
 - **Folio con pliegos y saltos:** cada mitad cuenta como una página. Si el escaneo salta páginas o el OCR lee mal un folio, el `.md` lo avisa con «OJO con el folio».
 - **Índices:** es lo que peor sale. El OCR separa cada título de su número y lee mal los números romanos. La librería detecta las páginas tipo índice, no las limpia y las marca siempre con «REVISAR A MANO».
 - **Nombres con guion propio** («Gil-galad»): se conservan solo si en algún lugar del libro aparecen a mitad de línea. Si el único lugar donde aparecen está cortado justo en su guion, se unen mal («Gilgalad»).

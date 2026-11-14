@@ -128,6 +128,24 @@ def aplanar_imagen(ruta_png: Path, carpeta_tmp: Path) -> tuple[np.ndarray, Resul
 
 
 # --------------------------------------------------------------------- un PDF
+def _tinta(gris: np.ndarray) -> float:
+    """Fracción de píxeles oscuros en el centro de la página (sin bordes)."""
+    alto, ancho = gris.shape
+    centro = igualar_luz(gris)[alto // 10: alto - alto // 10, ancho // 10: ancho - ancho // 10]
+    return float((centro < 128).mean())
+
+
+def igualar_luz(gris: np.ndarray) -> np.ndarray:
+    """Quita las sombras y la luz despareja de una foto: divide cada píxel por
+    el brillo del fondo a su alrededor. En un escaneo blanco casi no cambia
+    nada; en una foto de celular con fondo gris, deja el papel blanco y la
+    letra negra, que es lo que Tesseract lee mejor."""
+    chico = cv2.resize(gris, None, fx=0.1, fy=0.1, interpolation=cv2.INTER_AREA)
+    fondo = cv2.medianBlur(chico, 31)
+    fondo = cv2.resize(fondo, (gris.shape[1], gris.shape[0]), interpolation=cv2.INTER_LINEAR)
+    return np.clip(gris.astype(np.float32) / np.maximum(fondo.astype(np.float32), 1) * 235, 0, 255).astype(np.uint8)
+
+
 def _evaluar(img: np.ndarray, res: ResultadoPagina) -> tuple[bytes, dict]:
     """Mide la curva, decide si se marca para revisión y codifica la imagen."""
     res.curva_p90 = curva_p90(img) if res.parte not in ("blanco", "girada") else None
@@ -171,17 +189,42 @@ def _procesar_pagina(args: tuple[int, str, str, bool]) -> tuple[int, list[tuple[
             # Borde blanco alrededor: al partir un pliego, el texto queda pegado
             # al corte, y page-dewarp, al estirar la imagen, repite el último
             # píxel del borde y emborrona las últimas letras de cada línea.
+            # El borde es del color del fondo de la página, no blanco: en una foto
+            # con fondo gris, un marco blanco confunde a page-dewarp y no
+            # encuentra ninguna línea (probado con fotos de celular, 14/11/2026).
             m = max(img.shape) // 30
-            cv2.imwrite(str(media), cv2.copyMakeBorder(img, m, m, m, m, cv2.BORDER_CONSTANT, value=255))
+            fondo = int(np.median(img))
+            cv2.imwrite(str(media), cv2.copyMakeBorder(img, m, m, m, m, cv2.BORDER_CONSTANT, value=fondo))
             # page-dewarp escribe mucho en pantalla; con varias páginas a la vez se
             # mezcla y no se entiende. Se silencia y se informa al final de cada página.
             with contextlib.redirect_stdout(io.StringIO()):
                 img, r = aplanar_imagen(media, tmp)
             res.aplanada, res.lineas, res.motivo = r.aplanada, r.lineas, r.motivo
-            if r.lineas == 0 and r.motivo.startswith("pocas líneas"):
+            if r.lineas == 0 and r.motivo.startswith("pocas líneas") and _tinta(img) < 0.02:
                 res.motivo = "sin líneas de texto (figura o mitad vacía)"
+        if parte != "blanco":
+            img = igualar_luz(img)
         salidas.append(_evaluar(img, res))
     return i, salidas
+
+
+def dpi_de_pagina(doc: "fitz.Document", pagina: "fitz.Page", dpi: int) -> int:
+    """Resolución a la que se rasteriza una página.
+
+    Si la página es una sola foto de menor resolución que `dpi` (por debajo
+    del 75 %), se usa la de la foto: agrandarla no agrega información y solo
+    gasta memoria y tiempo. En una prueba con fotos de celular a 180 ppp, una
+    página rasterizada a 300 ppp agotó la memoria al aplanar.
+    """
+    imagenes = pagina.get_images()
+    if len(imagenes) != 1:
+        return dpi
+    try:
+        info = doc.extract_image(imagenes[0][0])
+    except Exception:
+        return dpi
+    nativo = max(info["width"], info["height"]) / (max(pagina.rect.width, pagina.rect.height) / 72)
+    return int(nativo) if nativo < 0.75 * dpi else dpi
 
 
 def nucleos_por_defecto() -> int:
@@ -212,9 +255,11 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
         tmp = Path(tmp)
         # 1. Rasterizar todas las páginas (rápido, en serie)
         tareas = []
+        dpis: dict[int, int] = {}
         for i, pagina in enumerate(doc, start=1):
             png = tmp / f"p{i:04d}.png"
-            pagina.get_pixmap(dpi=dpi, colorspace=fitz.csGRAY).save(png)
+            dpis[i] = dpi_de_pagina(doc, pagina, dpi)
+            pagina.get_pixmap(dpi=dpis[i], colorspace=fitz.csGRAY).save(png)
             propia = tmp / f"t{i:04d}"
             propia.mkdir()
             tareas.append((i, str(png), str(propia), paginas is None or i in paginas))
@@ -238,7 +283,7 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
     for i in sorted(hechas):
         for img_png, res in hechas[i]:
             alto, ancho = cv2.imdecode(np.frombuffer(img_png, np.uint8), cv2.IMREAD_GRAYSCALE).shape
-            hoja = nuevo.new_page(width=ancho * 72 / dpi, height=alto * 72 / dpi)
+            hoja = nuevo.new_page(width=ancho * 72 / dpis[i], height=alto * 72 / dpis[i])
             hoja.insert_image(hoja.rect, stream=img_png)
             res["pagina"] = len(resultados) + 1   # número en el PDF de salida
             resultados.append(ResultadoPagina(**res))
