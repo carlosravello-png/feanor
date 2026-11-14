@@ -72,6 +72,7 @@ Deja al lado del original:
 | `libro_ocr.pdf` | El PDF con texto seleccionable. Es el que se usa para verificar folios |
 | `libro_ocr.md` | El texto en Markdown, para trabajar. Cada página lleva el número del visor y, si se pudo deducir, el folio impreso del libro. En el cuerpo del libro se quita el ruido de la sombra del lomo y los folios, y se unen las palabras cortadas con guion. Las páginas tipo índice quedan sin limpiar |
 | `libro_informe.json` | Qué páginas se aplanaron y por qué no las demás |
+| `libro_tiempos.json` | Cuánto tardó cada paso y el total |
 
 Opciones:
 

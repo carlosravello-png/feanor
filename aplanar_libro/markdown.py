@@ -72,7 +72,16 @@ def _sin_folio(lineas: list[str]) -> list[str]:
     return [l for i, l in enumerate(lineas) if i not in quitar]
 
 
-def _unir_guiones(lineas: list[str], documento: str) -> list[str]:
+def compuestos_del_documento(documento: str) -> set[tuple[str, str]]:
+    """Todas las parejas «a-b» que aparecen con guion a mitad de línea en el
+    documento, en minúsculas («Dor-lómin» → ("dor", "lómin")). Se calcula una
+    sola vez por libro: buscarlas una por una en el texto entero era lo que
+    hacía lento el paso 3 en libros grandes."""
+    patron = re.compile(f"(?<![{LETRA}])(?=([{LETRA}]+)-([{LETRA}]+)(?![{LETRA}]))")
+    return {(m.group(1).lower(), m.group(2).lower()) for m in patron.finditer(documento)}
+
+
+def _unir_guiones(lineas: list[str], documento: str | set[tuple[str, str]]) -> list[str]:
     """Une las palabras cortadas con guion al final de la línea.
 
     La decisión se toma con el propio documento, no con un diccionario:
@@ -81,6 +90,7 @@ def _unir_guiones(lineas: list[str], documento: str) -> list[str]:
     - en cualquier otro caso se une («Si-» + «rion» → «Sirion»,
       «anterior-» + «mente» → «anteriormente»).
     """
+    compuestos = documento if isinstance(documento, set) else compuestos_del_documento(documento)
     salida: list[str] = []
     for l in lineas:
         if salida:
@@ -89,8 +99,7 @@ def _unir_guiones(lineas: list[str], documento: str) -> list[str]:
             m2 = re.match(f"[{LETRA}]+", sig)
             if m and m2 and sig[0].islower():
                 a, b = m.group(1), m2.group(0)
-                compuesto = re.search(f"(?<![{LETRA}]){re.escape(a)}-{re.escape(b)}(?![{LETRA}])",
-                                      documento, re.IGNORECASE)
+                compuesto = (a.lower(), b.lower()) in compuestos
                 union = f"{a}-{b}" if compuesto else a + b
                 primera = sig.split()[0]
                 salida[-1] = salida[-1][:m.start()] + union + primera[len(b):]
@@ -102,7 +111,7 @@ def _unir_guiones(lineas: list[str], documento: str) -> list[str]:
     return salida
 
 
-def limpiar(texto: str, documento: str | None = None) -> str:
+def limpiar(texto: str, documento: str | set[tuple[str, str]] | None = None) -> str:
     """Limpieza del texto de una página del cuerpo, sin tocar el OCR.
 
     1. Quita la sombra del lomo leída como texto (ver `_sin_ruido`).
@@ -110,7 +119,8 @@ def limpiar(texto: str, documento: str | None = None) -> str:
        El folio verdadero se lee en la imagen.
     3. Une las palabras cortadas con guion al final de la línea.
 
-    `documento` es el texto de todas las páginas; se usa para decidir si un
+    `documento` es el texto de todas las páginas (o sus compuestos ya
+    calculados con `compuestos_del_documento`); se usa para decidir si un
     guion pertenece a un nombre compuesto. Si no se pasa, se usa la página.
     """
     lineas = [l.rstrip() for l in texto.splitlines()]
@@ -192,7 +202,7 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
 
     doc = fitz.open(entrada)
     textos = [pagina.get_text("text").strip() for pagina in doc]
-    documento = "\n".join(textos)
+    documento = compuestos_del_documento("\n".join(textos))
     partes = [
         f"<!-- Texto extraído por OCR de: {Path(entrada).name} -->",
         AVISO,
