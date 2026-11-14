@@ -4,6 +4,7 @@ Rescata el texto de libros escaneados o fotografiados en español, incluidas las
 
 Hace tres pasos en fila:
 
+0. **Preparar** (desde la versión 0.4.0): parte en dos las páginas escaneadas con el libro abierto (pliegos), deja sin tocar las páginas en blanco y marca las que vienen giradas 90°.
 1. **Aplanar**: endereza las páginas curvas antes del OCR.
 2. **Leer**: pasa OCR con la configuración que funciona para el español.
 3. **Markdown**: escribe el texto página por página, con el número del visor y avisos en las páginas que hay que revisar a mano.
@@ -84,9 +85,13 @@ aplanar-libro "libro.pdf" --nucleos 4            # páginas que se aplanan a la 
 
 ## Límites conocidos
 
+- **Uso clínico y con IA:** esta herramienta no produce texto verificado. Dosis, valores de referencia, nombres de fármacos y cualquier cifra que vaya a usarse en una decisión clínica o en una publicación se comprueban en la fuente original. Lo mismo si el `.md` se le pasa a una IA: la IA no puede detectar un error de OCR en una cifra. Cada `.md` lleva este aviso en la cabecera.
 - **Curva muy cerrada junto al lomo:** el aplanado puede dejar las primeras líneas todavía un poco curvas, y entonces se pierde alguna palabra al final. Desde la versión 0.2.0 la librería mide ese resto de curva y marca la página con «REVISAR A MANO». En las 14 páginas de prueba marcó las tres malas y dio una falsa alarma. El umbral es provisional: ver [CALIBRACION.md](CALIBRACION.md).
 - **Errores sin curva:** una página que sale mal por sombra o por baja resolución, con las líneas rectas, no se marca.
 - **Páginas con poco texto** (índices, portadas, páginas con figuras): no se aplanan.
+- **Pliegos:** el corte se busca cerca del centro, en la franja vacía o en la sombra del lomo. Un pliego con una página casi vacía (una portada, el inicio de un capítulo) se deja entero si un lado no tiene texto.
+- **Páginas giradas 90°** (una tabla impresa de costado): se detectan y se marcan, pero no se enderezan bien. Se le pide a OCRmyPDF que las gire, y en la prueba no tuvo confianza suficiente para hacerlo. Hay que leerlas en la imagen.
+- **Folio con pliegos y saltos:** cada mitad cuenta como una página. Si el escaneo salta páginas o el OCR lee mal un folio, el `.md` lo avisa con «OJO con el folio».
 - **Índices:** es lo que peor sale. El OCR separa cada título de su número y lee mal los números romanos. La librería detecta las páginas tipo índice, no las limpia y las marca siempre con «REVISAR A MANO».
 - **Nombres con guion propio** («Gil-galad»): se conservan solo si en algún lugar del libro aparecen a mitad de línea. Si el único lugar donde aparecen está cortado justo en su guion, se unen mal («Gilgalad»).
 - **Tablas de datos:** una página con muchas líneas que son solo un número (una tabla, frecuente en libros de psicología) puede tomarse por índice. El error va en la dirección segura: queda sin limpiar y marcada.

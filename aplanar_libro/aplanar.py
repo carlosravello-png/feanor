@@ -29,6 +29,7 @@ import page_dewarp.image as _pdi
 from page_dewarp.options import Config
 
 from .calidad import UMBRAL_CURVA, curva_p90
+from .pliegos import en_blanco, preparar
 
 # Con menos líneas de texto que esto, la página no se aplana.
 MIN_LINEAS = 8
@@ -45,6 +46,8 @@ class ResultadoPagina:
     curva_p90: float | None = None   # resto de curva junto al lomo (ver calidad.py)
     revisar: bool = False            # marcar en el Markdown para revisión a mano
     motivo_revision: str = ""
+    origen: int = 0                  # página del PDF original de la que sale
+    parte: str = "simple"            # simple | izquierda | derecha | girada | blanco
 
 
 # ---------------------------------------------------------------- page-dewarp
@@ -125,27 +128,12 @@ def aplanar_imagen(ruta_png: Path, carpeta_tmp: Path) -> tuple[np.ndarray, Resul
 
 
 # --------------------------------------------------------------------- un PDF
-def _procesar_pagina(args: tuple[int, str, str, bool]) -> tuple[int, bytes, dict]:
-    """Trabajo de una página, pensado para correr en un proceso aparte.
-
-    Recibe el número de página, la ruta de su PNG, una carpeta temporal propia
-    y si hay que intentar aplanarla. Devuelve la imagen final codificada en PNG
-    y el resultado como diccionario (los procesos se pasan datos simples).
-    """
-    i, ruta_png, carpeta, intentar = args
-    png, tmp = Path(ruta_png), Path(carpeta)
-    if intentar:
-        # page-dewarp escribe mucho en pantalla; con varias páginas a la vez se
-        # mezcla y no se entiende. Se silencia y se informa al final de cada página.
-        with contextlib.redirect_stdout(io.StringIO()):
-            img, res = aplanar_imagen(png, tmp)
-    else:
-        img = cv2.imread(str(png), cv2.IMREAD_GRAYSCALE)
-        res = ResultadoPagina(0, False, 0, "no pedida")
-    res.pagina = i
-    # Señal de calidad sobre la imagen que va al OCR
-    res.curva_p90 = curva_p90(img)
+def _evaluar(img: np.ndarray, res: ResultadoPagina) -> tuple[bytes, dict]:
+    """Mide la curva, decide si se marca para revisión y codifica la imagen."""
+    res.curva_p90 = curva_p90(img) if res.parte not in ("blanco", "girada") else None
     avisos = []
+    if res.parte == "girada":
+        avisos.append("página girada 90°: la endereza el OCR, pero no se aplanó; revisar el orden del texto")
     if res.motivo.startswith(("pocas líneas", "page-dewarp")):
         avisos.append(res.motivo)
     if res.curva_p90 is not None and res.curva_p90 >= UMBRAL_CURVA:
@@ -153,7 +141,47 @@ def _procesar_pagina(args: tuple[int, str, str, bool]) -> tuple[int, bytes, dict
     res.revisar = bool(avisos)
     res.motivo_revision = "; ".join(avisos)
     ok, buf = cv2.imencode(".png", img)
-    return i, buf.tobytes(), asdict(res)
+    return buf.tobytes(), asdict(res)
+
+
+def _procesar_pagina(args: tuple[int, str, str, bool]) -> tuple[int, list[tuple[bytes, dict]]]:
+    """Trabajo de una página del PDF original, pensado para correr en un proceso aparte.
+
+    Recibe el número de página, la ruta de su PNG, una carpeta temporal propia
+    y si hay que intentar aplanarla. Primero la prepara (paso 0: blanco, girada,
+    pliego o simple); un pliego da dos páginas. Devuelve, por cada página que
+    sale, la imagen final codificada en PNG y su resultado como diccionario.
+    """
+    i, ruta_png, carpeta, intentar = args
+    png, tmp = Path(ruta_png), Path(carpeta)
+    gris = cv2.imread(str(png), cv2.IMREAD_GRAYSCALE)
+    salidas = []
+    for k, (img, parte) in enumerate(preparar(gris)):
+        if parte in ("izquierda", "derecha") and en_blanco(img):
+            parte = "blanco"                      # la otra mitad de una portada, por ejemplo
+        res = ResultadoPagina(0, False, 0, "", origen=i, parte=parte)
+        if parte == "blanco":
+            res.motivo = "página en blanco"
+        elif parte == "girada":
+            res.motivo = "página girada 90°: no se aplana"
+        elif not intentar:
+            res.motivo = "no pedida"
+        else:
+            media = tmp / f"{png.stem}_{k}.png"
+            # Borde blanco alrededor: al partir un pliego, el texto queda pegado
+            # al corte, y page-dewarp, al estirar la imagen, repite el último
+            # píxel del borde y emborrona las últimas letras de cada línea.
+            m = max(img.shape) // 30
+            cv2.imwrite(str(media), cv2.copyMakeBorder(img, m, m, m, m, cv2.BORDER_CONSTANT, value=255))
+            # page-dewarp escribe mucho en pantalla; con varias páginas a la vez se
+            # mezcla y no se entiende. Se silencia y se informa al final de cada página.
+            with contextlib.redirect_stdout(io.StringIO()):
+                img, r = aplanar_imagen(media, tmp)
+            res.aplanada, res.lineas, res.motivo = r.aplanada, r.lineas, r.motivo
+            if r.lineas == 0 and r.motivo.startswith("pocas líneas"):
+                res.motivo = "sin líneas de texto (figura o mitad vacía)"
+        salidas.append(_evaluar(img, res))
+    return i, salidas
 
 
 def nucleos_por_defecto() -> int:
@@ -169,8 +197,11 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
                 paginas: list[int] | None = None, nucleos: int | None = None) -> list[ResultadoPagina]:
     """Aplana las páginas de `entrada` y escribe un PDF de imágenes en `salida`.
 
-    `paginas`: números del visor (desde 1) que se intentan aplanar; las demás
-    pasan tal cual. Si es None, se intenta con todas.
+    `paginas`: números de página del PDF original (desde 1) que se intentan
+    aplanar; las demás pasan tal cual. Si es None, se intenta con todas.
+    Antes de aplanar, cada página se prepara (ver pliegos.py): los pliegos se
+    parten en dos y las páginas en blanco o giradas no se aplanan. Por eso el
+    PDF de salida puede tener más páginas que el original.
     `nucleos`: cuántas páginas se procesan a la vez (por defecto, todos los
     núcleos menos uno, con tope de 8).
     """
@@ -189,35 +220,37 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
             tareas.append((i, str(png), str(propia), paginas is None or i in paginas))
         # 2. Aplanar y medir, varias páginas a la vez
         print(f"  {len(tareas)} páginas, {nucleos} a la vez")
-        hechas: dict[int, tuple[bytes, dict]] = {}
+        hechas: dict[int, list[tuple[bytes, dict]]] = {}
         if nucleos == 1:
-            iterador = map(_procesar_pagina, tareas)
-            for i, img, res in iterador:
-                hechas[i] = (img, res)
-                _avisar(res)
+            for i, salidas in map(_procesar_pagina, tareas):
+                hechas[i] = salidas
+                _avisar(i, salidas)
         else:
             with ProcessPoolExecutor(max_workers=nucleos) as pool:
                 futuros = [pool.submit(_procesar_pagina, t) for t in tareas]
                 for f in as_completed(futuros):
-                    i, img, res = f.result()
-                    hechas[i] = (img, res)
-                    _avisar(res)
+                    i, salidas = f.result()
+                    hechas[i] = salidas
+                    _avisar(i, salidas)
     # 3. Armar el PDF en el orden original
     nuevo = fitz.open()
     resultados = []
     for i in sorted(hechas):
-        img_png, res = hechas[i]
-        alto, ancho = cv2.imdecode(np.frombuffer(img_png, np.uint8), cv2.IMREAD_GRAYSCALE).shape
-        hoja = nuevo.new_page(width=ancho * 72 / dpi, height=alto * 72 / dpi)
-        hoja.insert_image(hoja.rect, stream=img_png)
-        resultados.append(ResultadoPagina(**res))
+        for img_png, res in hechas[i]:
+            alto, ancho = cv2.imdecode(np.frombuffer(img_png, np.uint8), cv2.IMREAD_GRAYSCALE).shape
+            hoja = nuevo.new_page(width=ancho * 72 / dpi, height=alto * 72 / dpi)
+            hoja.insert_image(hoja.rect, stream=img_png)
+            res["pagina"] = len(resultados) + 1   # número en el PDF de salida
+            resultados.append(ResultadoPagina(**res))
     nuevo.save(salida, deflate=True)
     return resultados
 
 
-def _avisar(res: dict) -> None:
-    print(f"  página {res['pagina']}: {res['motivo']}"
-          + (f"  [REVISAR: {res['motivo_revision']}]" if res["revisar"] else ""), flush=True)
+def _avisar(i: int, salidas: list[tuple[bytes, dict]]) -> None:
+    for _, res in salidas:
+        parte = "" if res["parte"] in ("simple", "blanco", "girada") else f" ({res['parte']})"
+        print(f"  página {i}{parte}: {res['motivo']}"
+              + (f"  [REVISAR: {res['motivo_revision']}]" if res["revisar"] else ""), flush=True)
 
 
 def resultados_a_dict(resultados: list[ResultadoPagina]) -> list[dict]:

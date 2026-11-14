@@ -6,6 +6,8 @@ esta librería es la configuración que funcionó en pruebas con libros en espa�
 
 - Un solo idioma. Mezclar `spa+eng` hizo perder cerca del 40 % de las tildes y eñes;
   con `spa` volvieron todas.
+- `--rotate-pages`: endereza las páginas giradas (necesita el archivo
+  `osd.traineddata` de Tesseract; si no está, se lee sin girar y se avisa).
 - Modo de página 6 ("un solo bloque de texto") para páginas de libro. Evita que
   Tesseract parta las líneas como si hubiera dos columnas. No conviene en
   documentos que sí tienen columnas (artículos científicos): usar `modo="auto"`.
@@ -46,6 +48,10 @@ def leer_pdf(entrada: Path, salida: Path, idioma: str = "spa", modo: str = "libr
     if MODOS[modo]:
         cmd += ["--tesseract-pagesegmode", MODOS[modo]]
     cmd += ["--force-ocr"] if forzar else ["--skip-text"]
-    cmd += [str(entrada), str(salida)]
-    print("  " + " ".join(cmd))
-    subprocess.run(cmd, check=True)
+    con_giro = cmd + ["--rotate-pages", str(entrada), str(salida)]
+    print("  " + " ".join(con_giro))
+    r = subprocess.run(con_giro)
+    if r.returncode != 0:
+        print("  OCRmyPDF falló con --rotate-pages (¿falta osd.traineddata?). "
+              "Se lee de nuevo sin enderezar páginas giradas.")
+        subprocess.run(cmd + [str(entrada), str(salida)], check=True)

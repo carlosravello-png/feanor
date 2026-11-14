@@ -133,11 +133,53 @@ def test_folio_por_secuencia():
     textos[13] = "22\nINTRODUCCIÓN\n" + LARGA1
     textos[0] = "ÍNDICE\nPrefacio\n11\nI.\n31\n47"   # índice: no vota
     f = deducir_folios(textos, indices=[1])
-    assert f[5] == (13, "leído") and f[14] == (22, "leído")
-    assert f[10] == (18, "deducido") and f[13] == (21, "deducido")
-    assert f[3] == (11, "deducido") and f[1] == (9, "deducido")
+    assert f[5][:2] == (13, "leído") and f[14][:2] == (22, "leído")
+    assert f[10][:2] == (18, "deducido") and f[13][:2] == (21, "deducido")
+    assert "31" in f[13][2]                            # avisa la lectura que no coincide
+    assert f[3][:2] == (11, "deducido") and f[1][:2] == (9, "deducido")
 
 
 def test_sin_secuencia_no_inventa_folios():
     from aplanar_libro.markdown import deducir_folios
     assert deducir_folios([LARGA1, "7\n" + LARGA1, LARGA2], indices=[]) == {}
+
+
+def test_folio_con_salto_y_capitulo():
+    """Pliegos 1 a 4 (folios 2 a 9), falta el pliego de 12-13, siguen 14 y 15.
+    «Capítulo 1» en el encabezado no debe contar como folio."""
+    from aplanar_libro.markdown import deducir_folios
+    t = [LARGA1] * 14
+    for visor, folio in ((1, 2), (3, 4), (5, 6), (7, 8), (11, 14), (13, 16)):
+        t[visor - 1] = f"{folio}\nEl fenómeno de la inmunidad\nCapítulo 1\n" + LARGA1
+    f = deducir_folios(t, indices=[])
+    assert f[2][:2] == (3, "deducido") and f[8][:2] == (9, "deducido")
+    assert f[11][:2] == (14, "leído") and f[12][:2] == (15, "deducido")
+    assert "folio incierto" in f[9][2] and "folio incierto" in f[10][2]
+    assert f[2][2] == "" and f[12][2] == ""
+
+
+def test_pliego_sale_izquierda_y_luego_derecha():
+    """Auditoría 14/11/2026: un pliego invertido rompería la secuencia de folios en silencio."""
+    from aplanar_libro.pliegos import preparar
+    import random
+    random.seed(1)
+    palabras = "el la de que los las una por con para como sistema inmune celulas antigeno respuesta".split()
+    pliego = np.full((1200, 2000), 255, np.uint8)
+    for k in range(20):
+        for x0 in (60, 1060):
+            linea = " ".join(random.choice(palabras) for _ in range(5))
+            cv2.putText(pliego, linea, (x0 + random.randint(0, 20), 100 + 50 * k),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, 0, 2)
+    partes = preparar(pliego)
+    assert [p for _, p in partes] == ["izquierda", "derecha"]
+    izq, der = partes[0][0], partes[1][0]
+    assert izq.shape[1] < 1100 and der.shape[1] < 1100
+    assert (izq[:, :400] < 128).any() and (der[:, :400] < 128).any()
+
+
+def test_markdown_lleva_aviso(tmp_path):
+    pdf = tmp_path / "a.pdf"
+    doc = fitz.open(); doc.new_page().insert_text((72, 72), "uno"); doc.save(pdf)
+    md = tmp_path / "a.md"
+    pdf_a_markdown(pdf, md)
+    assert "No usar como fuente de dosis" in md.read_text(encoding="utf-8")
