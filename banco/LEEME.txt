@@ -1,0 +1,20 @@
+Banco de pruebas fijo de aplanar-libro (creado el 14/11/2026)
+
+Qué hay aquí
+  banco.py        el script que corre el banco
+  muestras.json   qué páginas de cada libro forman cada muestra (no cambiar entre versiones)
+  versiones\      una copia de la librería por versión; el banco usa la que se le pide,
+                  sin tocar la que está instalada
+  muestras\       los PDF de muestra; se crean solos la primera vez, a partir de los libros de D:\PDF_A_MD
+  corridas\       una carpeta nueva por corrida, con fecha, hora y versión; nunca se sobrescribe
+
+Cómo se corre (Anaconda Prompt), una corrida a la vez
+  D:
+  cd D:\PDF_A_MD\banco
+  python banco.py v0.4.3
+
+Los libros de muestra tienen derechos de autor: esta carpeta no va al repositorio.
+
+Nota para la copia del repositorio: estos scripts esperan estar en una carpeta
+`banco` junto a los libros de muestra (hoy, D:\PDF_A_MD\banco). Las carpetas
+versiones\, muestras\ y corridas\ no se suben: están en .gitignore.

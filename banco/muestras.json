@@ -1,0 +1,16 @@
+{
+  "_nota": "Banco de pruebas fijo de aplanar-libro. Los PDF completos están en la carpeta de arriba (D:\\PDF_A_MD) y no se copian: de cada uno se sacan siempre las mismas páginas. No cambiar estas listas entre versiones; si se agrega una muestra, se anota la fecha.",
+  "muestras": [
+    {"nombre": "tolkien", "descripcion": "Tolkien, 14 páginas, fotos de celular (mlkit, 258 ppp)",
+     "pdf": "Archivo_escaneado_20261113-1923.pdf", "modo": "libro", "paginas": "todas"},
+    {"nombre": "tizard", "descripcion": "Tizard, 25 pliegos, origen no verificado",
+     "pdf": "159221561-Inmunologia-Veterinaria-Tizard.pdf", "modo": "auto",
+     "paginas": [1, 2, 3, 4, 6, 7, 10, 11, 12, 21, 40, 48, 60, 66, 77, 89, 100, 135, 146, 151, 174, 238, 245, 252, 258]},
+    {"nombre": "hematologia", "descripcion": "Hematología, 25 pliegos, fotos de 180 ppp",
+     "pdf": "hematologia del perrro y el gatito.pdf", "modo": "auto",
+     "paginas": [1, 2, 3, 8, 14, 20, 26, 32, 38, 44, 50, 56, 62, 68, 74, 80, 86, 92, 98, 104, 110, 116, 122, 128, 134]},
+    {"nombre": "problema", "descripcion": "Hematología, 7 pliegos problema (29 y 30 agregados el 14/11/2026)",
+     "pdf": "hematologia del perrro y el gatito.pdf", "modo": "auto",
+     "paginas": [29, 30, 60, 80, 92, 93, 118]}
+  ]
+}

@@ -11,3 +11,10 @@ __pycache__/
 build/
 dist/
 .venv/
+*_tiempos.json
+.pytest_cache/
+# Banco de pruebas: solo se suben los scripts y la lista de páginas
+banco/corridas/
+banco/muestras/
+banco/versiones/
+banco/paddle_prueba/
