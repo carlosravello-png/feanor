@@ -18,7 +18,6 @@ from __future__ import annotations
 import contextlib
 import io
 import os
-import shutil
 import subprocess
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -34,6 +33,7 @@ import page_dewarp.image as _pdi
 from page_dewarp.options import Config
 
 from .calidad import TINTA_MINIMA, UMBRAL_CURVA, curva_p90
+from .entorno import ruta_tesseract
 from .pliegos import en_blanco, preparar
 
 # Con menos líneas de texto que esto, la página no se aplana.
@@ -44,6 +44,13 @@ AMPLIACION = 1.08
 # (de 0 a 100, la que da Tesseract) para contar una palabra como legible.
 ESCALA_LECTURA = 0.5
 CONFIANZA_LEGIBLE = 60
+# Control de forma: entre qué proporciones del tamaño de la entrada puede
+# salir la página aplanada (alto y ancho). Fuera de ese rango, el ajuste de
+# page-dewarp se desbocó y la página se descarta antes de construirla.
+# Medido en el banco el 14/11/2026 (113 páginas): las 88 aplanadas buenas
+# quedaron entre 0,90 y 2,62; las 9 desbocadas, en 0,28 o de 3,37 para arriba.
+# None = solo se mide, no se descarta.
+ESCALA_LIMITES: tuple[float, float] | None = (0.5, 3.0)
 # La lectura rápida tiene ruido: dos lecturas de la misma página difieren en
 # unas pocas palabras. La aplanada solo se descarta si lee menos que esta
 # fracción de lo que lee la original.
@@ -63,12 +70,14 @@ class ResultadoPagina:
     parte: str = "simple"            # simple | izquierda | derecha | girada | blanco
     lectura_original: int | None = None   # palabras legibles antes de aplanar (pasada rápida)
     lectura_aplanada: int | None = None   # palabras legibles después de aplanar
+    escala_alto: float | None = None      # alto de la aplanada / alto de la entrada, según page-dewarp
+    escala_ancho: float | None = None     # ancho de la aplanada / ancho de la entrada
 
 
 # ---------------------------------------------------------------- page-dewarp
 # Se envuelven dos funciones internas de page-dewarp sin modificar su código:
 # una para contar las líneas que encuentra y otra para agrandar el recuadro.
-_ultima_cuenta = {"lineas": 0}
+_ultima_cuenta = {"lineas": 0, "entrada": None, "escala": None}
 _assemble_original = _pdi.assemble_spans
 _dims_original = _pdi.get_page_dims
 
@@ -79,8 +88,30 @@ def _assemble_contando(*args, **kwargs):
     return spans
 
 
+class TamanoAbsurdo(Exception):
+    """El ajuste de page-dewarp dio una página de tamaño imposible."""
+
+
 def _dims_amplias(corners, rough_dims, params):
-    return _dims_original(corners, rough_dims, params) * AMPLIACION
+    """Recuadro de salida de page-dewarp, agrandado, y control de forma.
+
+    page-dewarp llama a esta función después de ajustar la curva y antes de
+    construir la imagen aplanada. Aquí ya se sabe de qué tamaño saldrá (ver
+    `RemappedImage` en page_dewarp/dewarp.py: alto = 0,5 · dims[1] · alto de
+    la entrada; ancho = alto · dims[0] / dims[1]). Si el ajuste se desbocó, la
+    salida sería varias veces más grande o más chica que la entrada: se
+    aborta aquí, sin gastar memoria ni tiempo en una imagen inservible.
+    """
+    dims = _dims_original(corners, rough_dims, params) * AMPLIACION
+    entrada = _ultima_cuenta["entrada"]
+    if entrada is not None:
+        alto, ancho = entrada
+        escala = (round(0.5 * float(dims[1]), 3), round(0.5 * float(dims[0]) * alto / ancho, 3))
+        _ultima_cuenta["escala"] = escala
+        if ESCALA_LIMITES is not None and not all(
+                ESCALA_LIMITES[0] <= e <= ESCALA_LIMITES[1] for e in escala):
+            raise TamanoAbsurdo
+    return dims
 
 
 _pdi.assemble_spans = _assemble_contando
@@ -123,23 +154,33 @@ def recortar(gris: np.ndarray, margen: int = 40) -> np.ndarray:
 def aplanar_imagen(ruta_png: Path, carpeta_tmp: Path) -> tuple[np.ndarray, ResultadoPagina]:
     """Aplana una imagen de página. Devuelve la imagen final y el resultado."""
     original = cv2.imread(str(ruta_png), cv2.IMREAD_GRAYSCALE)
-    _ultima_cuenta["lineas"] = 0
+    _ultima_cuenta.update(lineas=0, entrada=original.shape[:2], escala=None)
+
+    def resultado(aplanada: bool, motivo: str) -> ResultadoPagina:
+        ea, ew = _ultima_cuenta["escala"] or (None, None)
+        return ResultadoPagina(0, aplanada, _ultima_cuenta["lineas"], motivo,
+                               escala_alto=ea, escala_ancho=ew)
+
     cfg = msgspec.structs.replace(Config(), NO_BINARY=1, PAGE_MARGIN_X=10,
                                   PAGE_MARGIN_Y=10, OUTPUT_DIR=str(carpeta_tmp))
     try:
         _pdi.WarpedImage(str(ruta_png), config=cfg)
+    except TamanoAbsurdo:
+        ea, ew = _ultima_cuenta["escala"]
+        return original, resultado(False, f"aplanado descartado: saldría de tamaño absurdo "
+                                          f"(alto ×{ea}, ancho ×{ew}): se usa la original")
     except Exception as e:  # page-dewarp puede fallar en páginas sin texto
-        return original, ResultadoPagina(0, False, _ultima_cuenta["lineas"],
-                                         f"page-dewarp falló: {type(e).__name__}")
+        detalle = (str(e).strip().splitlines() or [""])[-1][:90]
+        return original, resultado(False, f"page-dewarp falló: {type(e).__name__}"
+                                          + (f" ({detalle})" if detalle else ""))
     lineas = _ultima_cuenta["lineas"]
     if lineas < MIN_LINEAS:
-        return original, ResultadoPagina(0, False, lineas,
-                                         f"pocas líneas de texto ({lineas} < {MIN_LINEAS})")
+        return original, resultado(False, f"pocas líneas de texto ({lineas} < {MIN_LINEAS})")
     salida = carpeta_tmp / f"{ruta_png.stem}_thresh.png"
     if not salida.exists():
-        return original, ResultadoPagina(0, False, lineas, "page-dewarp no escribió salida")
+        return original, resultado(False, "page-dewarp no escribió salida")
     aplanada = cv2.imread(str(salida), cv2.IMREAD_GRAYSCALE)
-    return recortar(aplanada), ResultadoPagina(0, True, lineas, "aplanada")
+    return recortar(aplanada), resultado(True, "aplanada")
 
 
 # --------------------------------------------------------------------- un PDF
@@ -167,7 +208,7 @@ def _evaluar(img: np.ndarray, res: ResultadoPagina) -> tuple[bytes, dict]:
     avisos = []
     if res.parte == "girada":
         avisos.append("página girada 90°: la endereza el OCR, pero no se aplanó; revisar el orden del texto")
-    if res.motivo.startswith(("pocas líneas", "page-dewarp", "aplanada, pero")):
+    if res.motivo.startswith(("pocas líneas", "page-dewarp", "aplanada, pero", "aplanado descartado")):
         avisos.append(res.motivo)
     if res.curva_p90 is not None and res.curva_p90 >= UMBRAL_CURVA:
         avisos.append(f"líneas todavía curvas junto al lomo (curva {res.curva_p90} ≥ {UMBRAL_CURVA})")
@@ -178,12 +219,7 @@ def _evaluar(img: np.ndarray, res: ResultadoPagina) -> tuple[bytes, dict]:
 
 
 def _tesseract() -> str | None:
-    """Ruta de Tesseract: en el PATH o en su carpeta habitual de Windows."""
-    ruta = shutil.which("tesseract")
-    if ruta:
-        return ruta
-    habitual = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
-    return str(habitual) if habitual.exists() else None
+    return ruta_tesseract()
 
 
 def palabras_legibles(gris: np.ndarray, carpeta: Path, idioma: str = "spa") -> int | None:
@@ -262,6 +298,10 @@ def _procesar_pagina(args: tuple[int, str, str, bool, str]) -> tuple[int, list[t
             with contextlib.redirect_stdout(io.StringIO()):
                 img, r = aplanar_imagen(media, tmp)
             res.aplanada, res.lineas, res.motivo = r.aplanada, r.lineas, r.motivo
+            res.escala_alto, res.escala_ancho = r.escala_alto, r.escala_ancho
+            if r.motivo.startswith("aplanado descartado"):
+                # Queda escrito cuánto texto había en la página descartada.
+                res.lectura_original = palabras_legibles(original, tmp, idioma)
             if r.aplanada:
                 # La salida no debe ser peor que la entrada: se leen las dos y,
                 # si la aplanada se lee claramente peor, se devuelve la original.
@@ -299,13 +339,65 @@ def dpi_de_pagina(doc: "fitz.Document", pagina: "fitz.Page", dpi: int) -> int:
     return int(nativo) if nativo < 0.75 * dpi else dpi
 
 
-def nucleos_por_defecto() -> int:
-    """Todos los núcleos menos uno, para no congelar la computadora.
+# Cuántas páginas se aplanan a la vez. Tres topes, y manda el más bajo:
+MAX_PROCESOS = 8          # nunca más de 8
+FRACCION_RAM = 0.7        # la memoria estimada no pasa del 70 % de la RAM libre
+# Memoria de un proceso: lo que ocupa con las librerías cargadas, más lo que
+# pide por cada píxel de la página aplanada. Medido el 14/11/2026: 0,25 GB en
+# vacío; 0,53 GB con una página de 5 megapíxeles que sale del mismo tamaño;
+# 1,13 GB con una de 9 megapíxeles que sale 2,6 veces más grande.
+GB_BASE = 0.3
+GB_POR_MEGAPIXEL_DE_SALIDA = 0.05
 
-    Tope de 8: cada página aplanada ocupa varios cientos de MB de memoria
-    mientras se procesa.
+
+def gb_por_pagina(megapixeles: float) -> float:
+    """Memoria que puede llegar a pedir un proceso con la página más grande
+    del documento, si sale del mayor tamaño que deja pasar el control de forma."""
+    tope = ESCALA_LIMITES[1] if ESCALA_LIMITES else 4.0
+    return GB_BASE + GB_POR_MEGAPIXEL_DE_SALIDA * megapixeles * tope ** 2
+
+
+def nucleos_por_defecto(megapixeles: float = 6.0) -> dict:
+    """Cuántas páginas aplanar a la vez y por qué. Devuelve un diccionario
+    con la cuenta (`procesos`), el límite que mandó y los datos usados, para
+    decirlo en la consola y dejarlo escrito en el registro de tiempos.
+
+    Se usan los núcleos físicos (los hilos extra casi no aceleran este
+    cálculo), con tope de 8, y sin pasar de la memoria libre: una computadora
+    con poca RAM procesa menos páginas a la vez en lugar de colgarse.
     """
-    return max(1, min((os.cpu_count() or 2) - 1, 8))
+    por_pagina = gb_por_pagina(megapixeles)
+    try:
+        import psutil
+        fisicos = psutil.cpu_count(logical=False) or os.cpu_count() or 2
+        libre = psutil.virtual_memory().available / 1e9
+        por_memoria = max(1, int(FRACCION_RAM * libre / por_pagina))
+        n = min(fisicos, MAX_PROCESOS, por_memoria)
+        limite = ("memoria libre" if n == por_memoria and por_memoria < min(fisicos, MAX_PROCESOS)
+                  else "núcleos físicos" if n == fisicos else f"tope de {MAX_PROCESOS}")
+        return {"procesos": n, "limite": limite, "nucleos_fisicos": fisicos,
+                "ram_libre_gb": round(libre, 1), "gb_por_pagina": round(por_pagina, 2),
+                "megapixeles_pagina_mayor": round(megapixeles, 1),
+                "motivo": (f"límite: {limite}; núcleos físicos: {fisicos}; memoria libre: "
+                           f"{libre:.1f} GB; hasta {por_pagina:.1f} GB por página")}
+    except ImportError:
+        n = max(1, min((os.cpu_count() or 2) // 2, 4))
+        return {"procesos": n, "limite": "sin psutil", "nucleos_fisicos": None,
+                "ram_libre_gb": None, "gb_por_pagina": round(por_pagina, 2),
+                "megapixeles_pagina_mayor": round(megapixeles, 1),
+                "motivo": "psutil no está instalado: no se pudo mirar la memoria y se usa un valor prudente"}
+
+
+# Cómo se repartió el trabajo en la última llamada a `aplanar_pdf`; la línea
+# de comandos lo copia al registro de tiempos.
+ULTIMA_CORRIDA: dict = {}
+
+
+def _megapixeles(png: Path) -> float:
+    """Tamaño de una página ya rasterizada; un pliego cuenta como sus dos mitades."""
+    pix = fitz.Pixmap(str(png))
+    mp = pix.width * pix.height / 1e6
+    return mp / 2 if pix.width > 1.2 * pix.height else mp
 
 
 def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
@@ -318,13 +410,12 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
     Antes de aplanar, cada página se prepara (ver pliegos.py): los pliegos se
     parten en dos y las páginas en blanco o giradas no se aplanan. Por eso el
     PDF de salida puede tener más páginas que el original.
-    `nucleos`: cuántas páginas se procesan a la vez (por defecto, todos los
-    núcleos menos uno, con tope de 8).
+    `nucleos`: cuántas páginas se procesan a la vez (por defecto, lo que
+    permitan los núcleos físicos y la memoria libre, con tope de 8).
     `idioma`: el de Tesseract, para la lectura rápida que compara cada página
     aplanada con su original.
     """
     entrada, salida = Path(entrada), Path(salida)
-    nucleos = nucleos or nucleos_por_defecto()
     doc = fitz.open(entrada)
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -339,7 +430,19 @@ def aplanar_pdf(entrada: Path, salida: Path, dpi: int = 300,
             propia.mkdir()
             tareas.append((i, str(png), str(propia), paginas is None or i in paginas, idioma))
         # 2. Aplanar y medir, varias páginas a la vez
-        print(f"  {len(tareas)} páginas, {nucleos} a la vez")
+        megapixeles = max(_megapixeles(Path(t[1])) for t in tareas) if tareas else 6.0
+        eleccion = nucleos_por_defecto(megapixeles)
+        if nucleos is None:
+            nucleos = eleccion["procesos"]
+            print(f"  {len(tareas)} páginas, {nucleos} a la vez ({eleccion['motivo']})")
+        else:
+            print(f"  {len(tareas)} páginas, {nucleos} a la vez (pedido con --nucleos)")
+            if nucleos > eleccion["procesos"]:
+                print(f"  AVISO: son más de las {eleccion['procesos']} que aconseja la máquina ({eleccion['motivo']})")
+            eleccion = {**eleccion, "procesos": nucleos, "limite": "pedido con --nucleos",
+                        "aconsejado": eleccion["procesos"]}
+        ULTIMA_CORRIDA.clear()
+        ULTIMA_CORRIDA.update(eleccion)
         hechas: dict[int, list[tuple[bytes, dict]]] = {}
         if nucleos == 1:
             for i, salidas in map(_procesar_pagina, tareas):

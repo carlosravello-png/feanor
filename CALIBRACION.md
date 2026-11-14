@@ -1,4 +1,13 @@
-# Calibración del aviso «REVISAR A MANO» (v0.2.0, 14/11/2026)
+# Calibración y banco de pruebas de aplanar-libro
+
+Qué se midió para fijar cada umbral, con qué material y qué no garantiza. Índice por versión:
+
+- **0.2.0** — aviso «REVISAR A MANO» por resto de curva (umbral 0,55): secciones «Material» a «Lo que esta calibración no garantiza».
+- **0.3.0** — nota sobre JAX: cambia el aplanado y la medida.
+- **0.4.3** — banco de pruebas fijo; margen del 80 % en la comparación de lectura.
+- **0.4.4** — control de forma (0,5 a 3,0), pliegos con un lado vacío, registro del entorno y páginas a la vez según la máquina.
+
+## 0.2.0 · Aviso «REVISAR A MANO» por resto de curva (14/11/2026)
 
 ## Material
 
@@ -73,8 +82,8 @@ Desde la 0.4.3, cada cambio se mide contra el mismo material antes de darse por 
 
 | Material | Páginas | Palabras válidas 0.4.2 | 0.4.3 | Devueltas a la original | Páginas que no cuadran sin aviso: 0.4.2 → 0.4.3 |
 |---|---|---|---|---|---|
-| Tolkien, 14 páginas de escáner | 14 | 3238 | 3238 | 0 | 0 → 0 |
-| Tizard, 25 pliegos fotocopiados | 43 | 18 844 | 19 279 | 8 | 0 → 0 |
+| Tolkien, 14 páginas, fotos de celular | 14 | 3238 | 3238 | 0 | 0 → 0 |
+| Tizard, 25 pliegos, origen no verificado | 43 | 18 844 | 19 279 | 8 | 0 → 0 |
 | Hematología, 25 pliegos en foto | 46 | 4445 | 4589 | 8 | 6 → 0 |
 | Páginas problema, 5 pliegos en foto | 9 | 584 | 837 | 3 | 4 → 0 |
 
@@ -83,4 +92,39 @@ Desde la 0.4.3, cada cambio se mide contra el mismo material antes de darse por 
 - **Lo que no cambió:** el texto de las 93 páginas que la 0.4.3 no devolvió a la original es idéntico, carácter por carácter, al de la 0.4.2.
 - **El margen del 80 %** se eligió con este banco. Con comparación estricta (aplanada < original), el ruido de la lectura rápida devolvía a la original 33 de 38 páginas del Tizard y 5 de 14 del Tolkien. Con 80 % se devuelven 19 en total: 14 ganan palabras válidas y 5 pierden (la peor, de 61 a 16).
 - **Salvedad:** el margen está ajustado sobre este mismo material. Falta medirlo con un libro que no se haya usado para ajustar nada.
+
+Corrección del 14/11/2026 a la tabla de arriba: el Tolkien figuraba como «escáner» y son fotos de celular (el PDF lo generó `mlkit`, 258 ppp); el Tizard figuraba como «fotocopiado» y su origen no está verificado (el archivo no trae datos; 235 ppp). Esa tabla se midió en el entorno de desarrollo, con JAX 0.12.0.1, dato que entonces no se registró.
+
+## 0.4.4 · Control de forma, pliegos con un lado vacío y registro del entorno (14/11/2026)
+
+Desde esta versión el banco corre en la PC del autor (Windows 11, Intel Core i5-10400F, 32 GB, Python 3.13.5, JAX 0.12.0.1, optimizador L-BFGS-B, Tesseract 5.5.3). Cuatro muestras, 128 páginas de PDF: Tolkien (14, fotos de celular), Tizard (25 pliegos, origen no verificado), hematología (25 pliegos, fotos de 180 ppp) y páginas problema (7 pliegos de hematología; los pliegos 29 y 30 se agregaron este día). Las listas de páginas están en `muestras.json` del banco, fuera del repositorio.
+
+### Distribución del tamaño de salida
+
+Proporción entre el tamaño de la página aplanada y el de la entrada (la mayor de alto y ancho), en las 113 páginas donde page-dewarp llegó a calcularlo, con el control desactivado:
+
+| Grupo | Páginas | Proporción |
+|---|---|---|
+| Aplanadas y aceptadas | 88 | mínima 0,90 · mediana 1,06 · percentil 90: 1,35 · máxima 2,62 |
+| Desbocadas | 9 | 0,28 (con ancho 2,86) · 3,37 · 4,0 · 4,2 · 6,1 · 7,7 · 8,2 · 26 · 231 millones |
+
+Las aceptadas más grandes son legítimas: las cuatro páginas curvas del Tolkien (1,75 a 1,98) y una del Tizard (2,62, que lee 131 palabras contra 133 de la original). El rango elegido, **0,5 a 3,0**, deja dentro las 88 y fuera las 9. El margen por arriba es estrecho (2,62 frente a 3,37) y está ajustado sobre este mismo material.
+
+### Banco: 0.4.3 frente a 0.4.4
+
+| Muestra | Páginas de salida | Aplanadas | Devueltas por lectura | Descartadas por tamaño | Errores de memoria | Marcadas | Palabras válidas | Tiempo (s) |
+|---|---|---|---|---|---|---|---|---|
+| Tolkien | 14 → 14 | 14 → 14 | 0 → 0 | 0 | 0 → 0 | 4 → 4 | 3220 → 3220 | 51 → 61 |
+| Tizard | 43 → 47 | 30 → 33 | 8 → 3 | 3 | 0 → 0 | 12 → 9 | 18 889 → 18 890 | 320 → 162 |
+| Hematología | 46 → 48 | 33 → 34 | 6 → 4 | 1 | 0 → 0 | 18 → 19 | 4429 → 4436 | 118 → 125 |
+| Páginas problema | 13 → 14 | 7 → 7 | 4 → 1 | 5 | 2 → 0 | 8 → 9 | 1364 → 1350 | 56 → 41 |
+| **Total** | 116 → 123 | 84 → 88 | 18 → 8 | 9 | 2 → 0 | 42 → 41 | 27 902 → 27 896 | 545 → 388 |
+
+- **Lo que no cambió:** de las 109 páginas de salida que conservan la misma estructura, 103 tienen el texto idéntico, carácter por carácter. Las 6 que difieren son las que pasaron de «aceptada» o «devuelta por lectura» a «descartada por tamaño». Páginas donde se contaron más líneas que palabras y quedaron sin aviso: 0 en las dos versiones.
+- **Palabras válidas:** no mejoran (−6 en 27 902). La 0.4.4 no lee más; evita construir páginas inservibles, parte bien los pliegos y tarda un 29 % menos en este banco.
+- **Las 14 palabras válidas que pierde «páginas problema»:** el pliego 29 izquierda (−8) se aceptaba aplanado con tamaño ×6,1 y esa versión gigante se leía algo mejor que la original (156 frente a 148); el pliego 118 (−3) antes fallaba por memoria y se leía entero, y ahora se parte; el resto son diferencias de 1 o 2 palabras.
+- **Por qué difieren en 1 o 2 palabras las páginas que usan la original en las dos versiones:** una página devuelta por lectura conserva la imagen original tal cual; una descartada por tamaño conserva la original con el marco del color del papel que se le agrega antes de aplanar. Es la misma página con un borde distinto. Queda como está y se declara.
+- **Pliegos que ahora se parten:** 4 del Tizard (páginas 1, 6, 10 y 60 del PDF; la 1 es la portada), 2 de hematología (104 y 110) y 1 de páginas problema (118). En el libro de hematología completo son 26 de 145; en el Tolkien, ninguno. Las páginas 1 y 2 de hematología (portada y portadilla) no cambian.
+- **Páginas a la vez:** Tolkien 3 (límite: memoria libre, por sus páginas de 12 megapíxeles), Tizard 6 y páginas problema 6 (núcleos físicos), hematología 5 (memoria libre). Antes eran 8 siempre. El Tolkien tarda 10 s más por eso.
+- **Lo que falta:** 8 páginas del banco se leen peor aplanadas con tamaño normal (por ejemplo, hematología pliego 80 izquierda: proporción 1,04, 0 palabras contra 85). La causa no está identificada; las cubre la comparación de lectura de la 0.4.3.
 

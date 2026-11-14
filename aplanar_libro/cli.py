@@ -12,7 +12,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .aplanar import aplanar_pdf, resultados_a_dict
+from . import __version__
+from .aplanar import ULTIMA_CORRIDA, aplanar_pdf, resultados_a_dict
+from .entorno import entorno
 from .leer import leer_pdf
 from .markdown import pdf_a_markdown
 
@@ -42,7 +44,7 @@ def main(argv: list[str] | None = None) -> None:
                    help="libro = un solo bloque de texto; auto = deja que Tesseract busque columnas")
     p.add_argument("--dpi", type=int, default=300)
     p.add_argument("--nucleos", type=int, default=None,
-                   help="páginas que se aplanan a la vez (por defecto, todos los núcleos menos uno, máx. 8)")
+                   help="páginas que se aplanan a la vez (por defecto, según los núcleos físicos y la memoria libre, máx. 8)")
     a = p.parse_args(argv)
 
     base = a.pdf.with_suffix("")
@@ -64,12 +66,16 @@ def main(argv: list[str] | None = None) -> None:
         n = len(fitz.open(a.pdf))
         paginas = [i for i in range(1, n + 1) if (i % 2 == 0) == (paginas == "pares")]
 
+    donde = entorno()
+    print(f"aplanar-libro {__version__} · optimizador: {donde['optimizador']} · "
+          f"JAX {donde['jax'] or 'no instalado'} · numpy {donde['numpy']} · scipy {donde['scipy']}")
     resultados = None
     if a.solo in (None, "aplanar"):
         print("Paso 1: aplanar")
         t = time.perf_counter()
         resultados = resultados_a_dict(aplanar_pdf(a.pdf, plano, dpi=a.dpi, paginas=paginas, nucleos=a.nucleos, idioma=a.idioma))
-        informe.write_text(json.dumps(resultados, ensure_ascii=False, indent=2), encoding="utf-8")
+        informe.write_text(json.dumps({"entorno": donde, "paginas": resultados},
+                                      ensure_ascii=False, indent=2), encoding="utf-8")
         medir("aplanar", t)
     if a.solo in (None, "leer"):
         print("Paso 2: leer (OCR)")
@@ -84,6 +90,8 @@ def main(argv: list[str] | None = None) -> None:
         print("Paso 3: Markdown")
         if resultados is None and informe.exists():
             resultados = json.loads(informe.read_text(encoding="utf-8"))
+            if isinstance(resultados, dict):          # desde la 0.4.4: {"entorno", "paginas"}
+                resultados = resultados["paginas"]
         # Misma corrección: con --solo markdown se usa el PDF con OCR si existe.
         entrada = ocr if ocr.exists() else a.pdf
         print(f"  entrada: {entrada.name}")
@@ -95,7 +103,9 @@ def main(argv: list[str] | None = None) -> None:
 
     tiempos["total"] = round(time.perf_counter() - inicio_total, 1)
     registro = {"fecha": datetime.now().isoformat(timespec="seconds"), "archivo": a.pdf.name,
-                "pasos": a.solo or "todos", "segundos": tiempos}
+                "pasos": a.solo or "todos", "segundos": tiempos, "entorno": donde}
+    if ULTIMA_CORRIDA:
+        registro["procesos"] = dict(ULTIMA_CORRIDA)
     tiempos_json.write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Listo. Tiempo total: {_duracion(tiempos['total'])}")
 

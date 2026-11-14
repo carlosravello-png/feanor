@@ -1,5 +1,6 @@
 """Pruebas rápidas, sin material con derechos de autor: imágenes y PDF sintéticos."""
 import cv2
+import pytest
 import pymupdf as fitz
 import numpy as np
 
@@ -205,7 +206,7 @@ def test_lectura_rapida_distingue_texto_de_blanco(tmp_path):
     """La comprobación del aplanado lee más palabras en una página con texto que en una vacía."""
     from aplanar_libro.aplanar import palabras_legibles, _tesseract
     if _tesseract() is None:
-        return                                       # sin Tesseract no hay nada que comparar
+        pytest.skip("Tesseract no está instalado: no hay nada que comparar")
     con_texto = np.full((1400, 2000), 255, np.uint8)
     for k in range(12):
         cv2.putText(con_texto, "la sangre del perro y del gato se estudia con cuidado",
@@ -213,3 +214,16 @@ def test_lectura_rapida_distingue_texto_de_blanco(tmp_path):
     vacia = np.full((1400, 2000), 255, np.uint8)
     assert palabras_legibles(con_texto, tmp_path) > 50
     assert palabras_legibles(vacia, tmp_path) == 0
+
+
+def test_pliego_con_un_lado_vacio_tambien_se_parte():
+    """Una hoja en blanco frente a una página con texto: salen dos mitades y
+    el corte no atraviesa el texto."""
+    from aplanar_libro.pliegos import corte_de_pliego
+    pliego = np.full((1000, 1600), 255, np.uint8)
+    for k in range(25):                                    # texto solo a la derecha
+        cv2.putText(pliego, "texto de la pagina derecha del pliego", (860, 100 + 32 * k),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, 0, 2)
+    x = corte_de_pliego(pliego)
+    assert x is not None and 0.38 * 1600 <= x < 860
+    assert (pliego[:, :x] < 128).sum() == 0              # todo el texto quedó a la derecha

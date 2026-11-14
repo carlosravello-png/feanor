@@ -69,8 +69,13 @@ def corte_de_pliego(gris: np.ndarray) -> int | None:
 
     Solo se buscan pliegos en imágenes apaisadas. El lomo está cerca del centro
     (entre el 38 % y el 62 % del ancho) y es, o una franja vacía entre dos
-    bloques de texto, o la línea oscura de la sombra del lomo. Además, a cada
-    lado del corte tiene que haber texto.
+    bloques de texto, o la línea oscura de la sombra del lomo.
+
+    Desde la versión 0.4.4, un pliego con un lado vacío (la hoja en blanco
+    frente a un inicio de capítulo, una hoja de «Notas») también se parte.
+    Antes se dejaba entero y se aplanaba como una sola página ancha, que
+    salía mal: en un libro de 145 pliegos pasó en 17. El corte cae siempre
+    en una franja sin tinta, así que no atraviesa texto.
     """
     alto, ancho = gris.shape
     if ancho < PROPORCION_PLIEGO * alto:
@@ -100,9 +105,6 @@ def corte_de_pliego(gris: np.ndarray) -> int | None:
                     mejor = (inicio, k - inicio)
                 inicio = None
         x = a + mejor[0] + mejor[1] // 2
-    izquierda, derecha = perfil[:x].mean(), perfil[x:].mean()
-    if izquierda < 0.01 or derecha < 0.01:              # un lado vacío: tapa, hoja suelta
-        return None
     return x
 
 

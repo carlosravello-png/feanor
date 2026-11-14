@@ -71,8 +71,8 @@ Deja al lado del original:
 | `libro_plano.pdf` | Las páginas aplanadas, como imágenes |
 | `libro_ocr.pdf` | El PDF con texto seleccionable. Es el que se usa para verificar folios |
 | `libro_ocr.md` | El texto en Markdown, para trabajar. Cada página lleva el número del visor y, si se pudo deducir, el folio impreso del libro. En el cuerpo del libro se quita el ruido de la sombra del lomo y los folios, y se unen las palabras cortadas con guion. Las páginas tipo índice quedan sin limpiar |
-| `libro_informe.json` | Qué páginas se aplanaron y por qué no las demás |
-| `libro_tiempos.json` | Cuánto tardó cada paso y el total |
+| `libro_informe.json` | Con qué se hizo la corrida (versión, optimizador, librerías, sistema) y, por página, si se aplanó, por qué no, de qué tamaño salía y cuánto se leía antes y después |
+| `libro_tiempos.json` | Cuánto tardó cada paso, el entorno, y cuántas páginas se procesaron a la vez y por qué límite |
 
 Opciones:
 
@@ -81,7 +81,7 @@ aplanar-libro "libro.pdf" --paginas pares        # aplanar solo las pares (o: im
 aplanar-libro "libro.pdf" --solo aplanar         # un solo paso: aplanar | leer | markdown
 aplanar-libro "articulo.pdf" --modo auto         # documentos a dos columnas
 aplanar-libro "book.pdf" --idioma eng            # otro idioma (uno solo, no mezclar)
-aplanar-libro "libro.pdf" --nucleos 4            # páginas que se aplanan a la vez (por defecto: núcleos − 1, máx. 8)
+aplanar-libro "libro.pdf" --nucleos 4            # páginas que se aplanan a la vez (por defecto: según núcleos físicos y memoria libre, máx. 8)
 ```
 
 ## Límites conocidos
@@ -92,7 +92,10 @@ aplanar-libro "libro.pdf" --nucleos 4            # páginas que se aplanan a la 
 - **Página que no cuadra:** si el paso 1 contó líneas de texto en una página y el OCR sacó menos palabras que líneas, la página se marca. Una página sin líneas detectadas (una figura, una foto muy mala) no se marca por esta regla.
 - **Errores sin curva:** una página que sale mal por sombra o por baja resolución, con las líneas rectas, no se marca.
 - **Páginas con poco texto** (índices, portadas, páginas con figuras): no se aplanan.
-- **Pliegos:** el corte se busca cerca del centro, en la franja vacía o en la sombra del lomo. Un pliego con una página casi vacía (una portada, el inicio de un capítulo) se deja entero si un lado no tiene texto.
+- **Pliegos:** el corte se busca cerca del centro, en la franja vacía o en la sombra del lomo. Desde la versión 0.4.4, un pliego con un lado vacío (la hoja en blanco frente a un inicio de capítulo, una hoja de «Notas») también se parte; antes se aplanaba entero como una sola página ancha y salía mal. Consecuencia: una portada apaisada con el título a un lado sale como dos páginas, una en blanco. La mitad vacía no se descarta: sigue en el PDF y se lee. Una mitad con unas pocas líneas pegadas al borde superior o inferior puede quedar rotulada como «en blanco», aunque su texto se lee igual.
+- **Aplanado que se desboca:** en algunas páginas el cálculo de la curva termina en una solución absurda y la página saldría varias veces más grande y deformada. Desde la versión 0.4.4 se mide el tamaño de salida antes de construir la imagen; si el alto o el ancho quedan fuera de 0,5 a 3,0 veces el de la entrada, el aplanado se descarta, se usa la original y la página se marca. El rango sale del banco de pruebas (ver [CALIBRACION.md](CALIBRACION.md)) y el margen por arriba es estrecho: la página buena más grande midió 2,62 y la mala más chica, 3,37. Tiene un costo: una página descartada puede leerse algo peor que su versión gigante (en el banco, una pasó de 156 a 148 palabras válidas). No resuelve todos los fallos: de 17 páginas del banco que se leen peor aplanadas, el tamaño explica 9.
+- **Resultados distintos entre computadoras:** con la misma versión de la librería y de JAX, una página difícil dio resultados distintos en dos máquinas. El cálculo es inestable en esas páginas y no se puede prometer que dos computadoras den exactamente lo mismo. Cada corrida deja escrito su entorno en `libro_informe.json` y `libro_tiempos.json` para poder compararlas.
+- **Memoria:** la librería elige cuántas páginas aplanar a la vez según los núcleos físicos (máximo 8) y la memoria libre, y lo dice en la consola. La memoria por página es una estimación prudente (0,3 GB más 0,05 GB por megapíxel de la página más grande, si saliera del tamaño máximo permitido); en una computadora con poca RAM irá más lento, no debería colgarse. Requiere `psutil`; sin él, usa un valor fijo y lo avisa.
 - **Páginas giradas 90°** (una tabla impresa de costado): se detectan y se marcan, pero no se enderezan bien. Se le pide a OCRmyPDF que las gire, y en la prueba no tuvo confianza suficiente para hacerlo. Hay que leerlas en la imagen.
 - **Folio al costado:** solo se buscan folios en el encabezado y el pie. Un libro que imprime el número de página en un recuadro al costado, a media altura, queda sin folios deducidos.
 - **Fotos de celular:** desde la versión 0.4.2 se iguala la luz (se quitan sombras y fondo gris) y las fotos se rasterizan a su resolución real. En una muestra de 25 pliegos fotografiados, las palabras válidas pasaron de 87,2 % a 89,7 %.
