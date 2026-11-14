@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aplanar-libro"
+version = "0.1.0"
+description = "Aplana páginas curvas de libros escaneados, pasa OCR en español y genera Markdown."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Carlos Eduardo Ravello Joo" }]
+requires-python = ">=3.10"
+dependencies = [
+  "page-dewarp>=0.3.4",
+  "pymupdf>=1.24",
+  "opencv-python-headless>=4.8",
+  "numpy>=1.24",
+  "msgspec>=0.18",
+]
+
+[project.scripts]
+aplanar-libro = "aplanar_libro.cli:main"
+
+[tool.setuptools]
+packages = ["aplanar_libro"]

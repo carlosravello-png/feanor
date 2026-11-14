@@ -1,0 +1,13 @@
+# Material con derechos de autor o privado: nunca se sube
+privado/
+*.pdf
+!tests/datos/*.pdf
+*.png
+!tests/datos/*.png
+*_informe.json
+*.md.tmp
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
