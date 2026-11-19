@@ -290,3 +290,50 @@ def test_powerpoint_rotulo_valor_se_lee_por_filas(tmp_path):
     pptx_a_markdown(entrada, salida)
     md = salida.read_text(encoding="utf-8")
     assert md.index("Antecedentes:") < md.index("historia del desarrollo") < md.index("Motivo:") < md.index("conducta referida")
+
+
+def test_powerpoint_lee_texto_de_imagenes(tmp_path):
+    """Una lámina con texto pegada como imagen se lee con OCR y va marcada;
+    un logo chico no se lee, y una foto sin texto queda solo anotada."""
+    pptx = pytest.importorskip("pptx")
+    from pptx.util import Inches
+    from aplanar_libro.entorno import ruta_tesseract
+    from aplanar_libro.presentacion import pptx_a_markdown
+    if not ruta_tesseract():
+        pytest.skip("Tesseract no está instalado")
+
+    lamina = np.full((600, 1400), 255, np.uint8)
+    for k, t in enumerate(["CONFIDENCIALIDAD DEL PACIENTE", "Articulo 46 y Articulo 47",
+                           "La informacion es privada"]):
+        cv2.putText(lamina, t, (60, 150 + 150 * k), cv2.FONT_HERSHEY_SIMPLEX, 2.0, 0, 4)
+    foto = np.random.default_rng(1).integers(0, 255, (400, 600), dtype=np.uint8)
+    cv2.imwrite(str(tmp_path / "lamina.png"), lamina)
+    cv2.imwrite(str(tmp_path / "foto.png"), cv2.GaussianBlur(foto, (31, 31), 0))
+
+    prs = pptx.Presentation()
+    d = prs.slides.add_slide(prs.slide_layouts[6])
+    d.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.6)).text_frame.text = "Titulo"
+    d.shapes.add_picture(str(tmp_path / "lamina.png"), Inches(0.5), Inches(1), Inches(9), Inches(3.9))
+    d.shapes.add_picture(str(tmp_path / "lamina.png"), Inches(9.2), Inches(7), Inches(0.6), Inches(0.26))  # logo
+    d2 = prs.slides.add_slide(prs.slide_layouts[6])
+    d2.shapes.add_picture(str(tmp_path / "foto.png"), Inches(1), Inches(1), Inches(6), Inches(4))
+    entrada, salida = tmp_path / "laminas.pptx", tmp_path / "laminas.md"
+    prs.save(entrada)
+    r = pptx_a_markdown(entrada, salida)
+    md = salida.read_text(encoding="utf-8")
+    assert r["imagenes"] == 3 and r["imagenes_leidas"] == 1
+    assert "texto leído con OCR" in md and "CONFIDENCIALIDAD" in md
+    assert "47" in md                                         # los números no se pierden
+    assert md.count(": texto leído con OCR") == 1             # ni el logo ni la foto
+    assert "sin texto legible" in md
+    assert r["sin_texto"] == [2]                              # la foto sola no cuenta como texto
+
+
+def test_forma_de_palabra():
+    """Sin diccionario: «Cpg?» (sin vocal), «%00s» (cifras dentro) y «SUPoOSICION»
+    (mayúsculas mezcladas) no cuentan como palabras; sí las normales."""
+    from aplanar_libro.presentacion import _parece_palabra
+    for w in ["Cpg?", "%00s", "SUPoOSICION", "1", "2)", "ld", "E"]:
+        assert not _parece_palabra(w), w
+    for w in ["CONFIDENCIALIDAD", "Beneficencia).", "información", "(Principio", "Art."]:
+        assert _parece_palabra(w), w

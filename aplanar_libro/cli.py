@@ -33,16 +33,18 @@ def _duracion(segundos: float) -> str:
     return f"{m} min {s:02d} s" if m else f"{s} s"
 
 
-def _presentacion(entrada: Path) -> None:
-    """PowerPoint: no hay páginas que aplanar ni leer; se copia el texto que trae."""
+def _presentacion(entrada: Path, idioma: str) -> None:
+    """PowerPoint: se copia el texto que trae; las imágenes con texto se leen con OCR."""
     from .presentacion import pptx_a_markdown
     md = entrada.with_suffix("").with_name(entrada.stem + ".md")
-    print(f"aplanar-libro {__version__} · PowerPoint: se copia su texto, sin OCR")
+    print(f"aplanar-libro {__version__} · PowerPoint: texto copiado; OCR solo en las imágenes con texto")
     inicio = time.perf_counter()
-    r = pptx_a_markdown(entrada, md)
+    r = pptx_a_markdown(entrada, md, idioma=idioma)
+    if not r["ocr"]:
+        print("  OJO: no se encontró Tesseract; las imágenes no se leyeron, solo se anotan")
     print(f"  {r['diapositivas']} diapositivas, sin texto: {r['sin_texto'] or 'ninguna'}; "
-          f"imágenes: {r['imagenes']}, tablas: {r['tablas']}, gráficos: {r['graficos']}, "
-          f"con notas del orador: {r['con_notas']}")
+          f"imágenes: {r['imagenes']} (con texto leído por OCR: {r['imagenes_leidas']}), "
+          f"tablas: {r['tablas']}, gráficos: {r['graficos']}, con notas del orador: {r['con_notas']}")
     print(f"  resultado: {md.name}")
     print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")
 
@@ -64,7 +66,7 @@ def main(argv: list[str] | None = None) -> None:
 
     extension = a.pdf.suffix.lower()
     if extension == ".pptx":
-        _presentacion(a.pdf)
+        _presentacion(a.pdf, a.idioma)
         return
     if extension == ".ppt":
         raise SystemExit("Es un PowerPoint antiguo (.ppt). Ábrelo en PowerPoint, guárdalo como .pptx y vuelve a intentarlo.")
