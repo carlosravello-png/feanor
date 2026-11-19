@@ -43,7 +43,8 @@ def _presentacion(entrada: Path, idioma: str) -> None:
     if not r["ocr"]:
         print("  OJO: no se encontró Tesseract; las imágenes no se leyeron, solo se anotan")
     print(f"  {r['diapositivas']} diapositivas, sin texto: {r['sin_texto'] or 'ninguna'}; "
-          f"imágenes: {r['imagenes']} (con texto leído por OCR: {r['imagenes_leidas']}), "
+          f"imágenes: {r['imagenes']} (con texto leído por OCR: {r['imagenes_leidas']}, "
+          f"con texto escaso marcado [?]: {r['imagenes_escasas']}), "
           f"tablas: {r['tablas']}, gráficos: {r['graficos']}, con notas del orador: {r['con_notas']}")
     print(f"  resultado: {md.name}")
     print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")

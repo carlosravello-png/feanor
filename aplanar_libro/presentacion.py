@@ -1,13 +1,15 @@
 """Presentaciones de PowerPoint (.pptx) a Markdown.
 
 Un .pptx no es una imagen: por dentro guarda el texto de cada diapositiva ya
-escrito, con sus títulos, viñetas, tablas y notas del orador. Aquí no hay
-aplanado ni OCR; se copia ese texto en el orden en que se lee la diapositiva.
+escrito, con sus títulos, viñetas, tablas y notas del orador. Ese texto se
+copia tal cual, sin aplanado ni OCR, en el orden en que se lee la diapositiva.
 
-Las imágenes: si una imagen trae texto (una lámina armada como foto, un
-esquema), se lee con OCR (Tesseract) y ese texto va entre marcas propias,
-aparte del texto copiado, porque puede tener errores. Las fotos y logos sin
-texto legible quedan solo anotados. El contenido de los gráficos no se lee.
+El OCR (Tesseract) se usa solo dentro de las imágenes: si una trae texto (una
+lámina armada como foto, un esquema), ese texto va entre marcas propias,
+aparte del texto copiado, porque puede tener errores. Nada se pierde en
+silencio: cada imagen deja anotado qué pasó con ella (leída, no leída y por
+qué, texto escaso, renglones descartados por baja confianza). El contenido de
+los gráficos no se lee.
 
 Usa python-pptx (licencia MIT, verificada en PyPI el 19/11/2026).
 """
@@ -20,7 +22,8 @@ from pathlib import Path
 
 AVISO = """<!-- AVISO: el texto de las diapositivas está copiado tal cual de la presentación, sin OCR. El texto
 leído dentro de imágenes sí sale de OCR: va entre marcas «texto leído con OCR» y puede tener errores;
-se verifica en el original. Las imágenes sin texto legible y los gráficos solo quedan anotados. -->"""
+se verifica en el original. Cada imagen deja anotado qué pasó con ella (leída o no y por qué). Los
+renglones dudosos van con «[?]». El contenido de los gráficos no se lee. -->"""
 
 # Una imagen que ocupa menos que esto de la diapositiva es un logo o un ícono: no se lee.
 AREA_MINIMA_OCR = 0.03
@@ -33,6 +36,10 @@ CONFIANZA_MINIMA = 50
 DUDOSO = "[?] "
 # Una imagen cuenta como «con texto» si de ella salen al menos estas palabras con forma de palabra.
 PALABRAS_MINIMAS = 6
+# Con menos, pero al menos estas, el texto es escaso (un rótulo, un título corto): se conserva
+# entero marcado con «[?]». Con menos todavía (una palabra suelta, típica de una foto), se
+# descarta y se dice cuántas palabras eran.
+PALABRAS_ESCASAS = 2
 
 
 def _python_pptx():
@@ -232,10 +239,13 @@ def _parece_palabra(w: str) -> bool:
     return w.islower() or w.isupper() or (w[0].isupper() and w[1:].islower())
 
 
-def _texto_de_imagen(blob: bytes, idioma: str, exe: str) -> list[str] | None:
-    """Lee con OCR el texto de una imagen y lo devuelve en orden de lectura.
+def _texto_de_imagen(blob: bytes, idioma: str, exe: str) -> dict | None:
+    """Lee con OCR el texto de una imagen.
 
-    None si la imagen no se puede abrir (por ejemplo, un dibujo vectorial).
+    Devuelve los renglones en orden de lectura (los dudosos marcados con
+    «[?]»), cuántas palabras con forma de palabra salieron y cuántos renglones
+    se descartaron por baja confianza. None si la imagen no se puede abrir
+    (por ejemplo, un dibujo vectorial).
     Tesseract en modo «texto disperso» (psm 11), porque en una lámina el texto
     va en recuadros sueltos; los renglones se ordenan después con la misma
     regla de columnas que las diapositivas.
@@ -271,40 +281,55 @@ def _texto_de_imagen(blob: bytes, idioma: str, exe: str) -> list[str] | None:
                 break
         else:
             renglones.append(p)
-    # Se borran solo los renglones que no tienen ni letras ni cifras (signos sueltos,
-    # restos de flechas): los que tienen algo de eso se conservan, marcados si dudan.
-    buenos = [r_ for r_ in renglones if r_.confianza >= CONFIANZA_MINIMA
-              and any(ch.isalnum() for ch in r_.texto)]
-    claras = sum(_parece_palabra(w) for r_ in buenos for w in r_.texto.split())
-    if claras < PALABRAS_MINIMAS:                    # foto o logo: no hay texto que leer
-        return []
-    return [r_.texto if any(_parece_palabra(w) for w in r_.texto.split()) else DUDOSO + r_.texto
-            for r_ in _orden_de_lectura(buenos, imagen.width)]
+    # Se borran sin contar solo los renglones que no tienen ni letras ni cifras
+    # (signos sueltos, restos de flechas). Los de baja confianza se borran pero se
+    # cuentan; los demás se conservan, marcados si dudan.
+    con_algo = [r_ for r_ in renglones if any(ch.isalnum() for ch in r_.texto)]
+    buenos = [r_ for r_ in con_algo if r_.confianza >= CONFIANZA_MINIMA]
+    return {
+        "lineas": [r_.texto if any(_parece_palabra(w) for w in r_.texto.split()) else DUDOSO + r_.texto
+                   for r_ in _orden_de_lectura(buenos, imagen.width)],
+        "palabras": sum(_parece_palabra(w) for r_ in buenos for w in r_.texto.split()),
+        "baja_confianza": len(con_algo) - len(buenos),
+    }
 
 
 def _bloques_de_imagenes(imagenes: list, area_diapositiva: int, idioma: str,
                          exe: str | None, cuenta: dict) -> list[str]:
+    """Una anotación por imagen: qué se leyó, o por qué no."""
     partes: list[str] = []
-    sin_texto = 0
     for k, forma in enumerate(sorted(imagenes, key=lambda f: _caja(f)[:2][::-1]), start=1):
         area = (forma.width or 0) * (forma.height or 0) / max(1, area_diapositiva)
-        lineas = None
-        if exe and area >= AREA_MINIMA_OCR:
-            try:
-                lineas = _texto_de_imagen(forma.image.blob, idioma, exe)
-            except Exception:
-                lineas = None
-        if lineas:
+        if not exe:
+            partes += [f"<!-- imagen {k}: no leída, no se encontró Tesseract; ver el original -->", ""]
+            continue
+        if area < AREA_MINIMA_OCR:
+            partes += [f"<!-- imagen {k}: no leída, imagen muy pequeña (logo o ícono); ver el original -->", ""]
+            continue
+        try:
+            leido = _texto_de_imagen(forma.image.blob, idioma, exe)
+        except Exception:
+            leido = None
+        if leido is None:
+            partes += [f"<!-- imagen {k}: no leída, formato que no se puede abrir; ver el original -->", ""]
+            continue
+        descartes = (f"; {leido['baja_confianza']} renglones descartados por baja confianza"
+                     if leido["baja_confianza"] else "")
+        if leido["palabras"] >= PALABRAS_MINIMAS:
             cuenta["imagenes_leidas"] += 1
-            partes += [f"<!-- imagen {k}: texto leído con OCR, puede tener errores; verificar en el original -->",
+            partes += [f"<!-- imagen {k}: texto leído con OCR, puede tener errores{descartes}; "
+                       "verificar en el original -->",
+                       "", *leido["lineas"], "", f"<!-- fin del texto leído en la imagen {k} -->", ""]
+        elif leido["palabras"] >= PALABRAS_ESCASAS:
+            # Poco texto (un rótulo, un título corto): se conserva, todo marcado como dudoso.
+            cuenta["imagenes_escasas"] += 1
+            lineas = [l if l.startswith(DUDOSO) else DUDOSO + l for l in leido["lineas"]]
+            partes += [f"<!-- imagen {k}: texto escaso leído con OCR ({leido['palabras']} palabras), "
+                       f"todo dudoso{descartes}; verificar en el original -->",
                        "", *lineas, "", f"<!-- fin del texto leído en la imagen {k} -->", ""]
         else:
-            sin_texto += 1
-    if sin_texto:
-        que = ("1 imagen sin texto legible" if sin_texto == 1 else f"{sin_texto} imágenes sin texto legible")
-        if not exe:
-            que += " (no se encontró Tesseract: no se intentó leerlas)"
-        partes += [f"<!-- {que} en esta diapositiva; ver el original -->", ""]
+            suelta = (f"; texto escaso descartado ({leido['palabras']} palabra)" if leido["palabras"] else "")
+            partes += [f"<!-- imagen {k}: sin texto legible{suelta}{descartes}; ver el original -->", ""]
     return partes
 
 
@@ -358,7 +383,7 @@ def pptx_a_markdown(entrada: Path, salida: Path, idioma: str = "spa", ocr_imagen
     presentacion = Presentation(str(entrada))
     exe = ruta_tesseract() if ocr_imagenes else None
     area = (presentacion.slide_width or 9144000) * (presentacion.slide_height or 6858000)
-    cuenta = {"diapositivas": 0, "sin_texto": [], "imagenes": 0, "imagenes_leidas": 0,
+    cuenta = {"diapositivas": 0, "sin_texto": [], "imagenes": 0, "imagenes_leidas": 0, "imagenes_escasas": 0,
               "tablas": 0, "graficos": 0, "con_notas": 0, "ocr": bool(exe)}
     partes = [f"<!-- Texto extraído de la presentación: {Path(entrada).name} -->", AVISO, ""]
     for n, diapositiva in enumerate(presentacion.slides, start=1):

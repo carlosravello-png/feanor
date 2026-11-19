@@ -325,8 +325,36 @@ def test_powerpoint_lee_texto_de_imagenes(tmp_path):
     assert "texto leído con OCR" in md and "CONFIDENCIALIDAD" in md
     assert "47" in md                                         # los números no se pierden
     assert md.count(": texto leído con OCR") == 1             # ni el logo ni la foto
-    assert "sin texto legible" in md
+    assert "no leída, imagen muy pequeña" in md               # el logo: no leído, y dicho
+    assert "sin texto legible" in md                          # la foto: leída, sin texto
     assert r["sin_texto"] == [2]                              # la foto sola no cuenta como texto
+
+
+def test_powerpoint_numero_suelto_llega_marcado(tmp_path):
+    """De extremo a extremo: un renglón que es solo un número llega al .md con «[?]»,
+    no se borra."""
+    pptx = pytest.importorskip("pptx")
+    from pptx.util import Inches
+    from aplanar_libro.entorno import ruta_tesseract
+    from aplanar_libro.presentacion import pptx_a_markdown
+    if not ruta_tesseract():
+        pytest.skip("Tesseract no está instalado")
+
+    lamina = np.full((900, 1400), 255, np.uint8)
+    for k, t in enumerate(["CONFIDENCIALIDAD DEL PACIENTE", "La informacion es privada",
+                           "Reserva absoluta de datos"]):
+        cv2.putText(lamina, t, (60, 150 + 150 * k), cv2.FONT_HERSHEY_SIMPLEX, 2.0, 0, 4)
+    cv2.putText(lamina, "47", (600, 750), cv2.FONT_HERSHEY_SIMPLEX, 3.0, 0, 6)
+    cv2.imwrite(str(tmp_path / "lamina.png"), lamina)
+    prs = pptx.Presentation()
+    d = prs.slides.add_slide(prs.slide_layouts[6])
+    d.shapes.add_picture(str(tmp_path / "lamina.png"), Inches(0.5), Inches(0.5), Inches(9), Inches(5.8))
+    entrada, salida = tmp_path / "numero.pptx", tmp_path / "numero.md"
+    prs.save(entrada)
+    pptx_a_markdown(entrada, salida)
+    lineas = salida.read_text(encoding="utf-8").splitlines()
+    assert "[?] 47" in lineas
+    assert "CONFIDENCIALIDAD DEL PACIENTE" in lineas          # el texto normal va sin marca
 
 
 def test_forma_de_palabra():
