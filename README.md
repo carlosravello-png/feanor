@@ -74,6 +74,8 @@ Deja al lado del original:
 | `libro_informe.json` | Con qué se hizo la corrida (versión, optimizador, librerías, sistema) y, por página, si se aplanó, por qué no, de qué tamaño salía y cuánto se leía antes y después |
 | `libro_tiempos.json` | Cuánto tardó cada paso, el entorno, y cuántas páginas se procesaron a la vez y por qué límite |
 
+Con una presentación de PowerPoint (`.pptx`) no hay nada que aplanar ni leer: se copia el texto que trae cada diapositiva, en orden de lectura (columna por columna si la diapositiva está armada en columnas), con sus tablas y las notas del orador. Deja `clase.md` al lado del original. El texto que esté dentro de imágenes o gráficos no se lee; cada diapositiva anota cuántos tiene. Un `.ppt` antiguo hay que guardarlo antes como `.pptx`.
+
 Opciones:
 
 ```
@@ -81,6 +83,7 @@ aplanar-libro "libro.pdf" --paginas pares        # aplanar solo las pares (o: im
 aplanar-libro "libro.pdf" --solo aplanar         # un solo paso: aplanar | leer | markdown
 aplanar-libro "articulo.pdf" --modo auto         # documentos a dos columnas
 aplanar-libro "book.pdf" --idioma eng            # otro idioma (uno solo, no mezclar)
+aplanar-libro "clase.pptx"                       # PowerPoint a Markdown
 aplanar-libro "libro.pdf" --nucleos 4            # páginas que se aplanan a la vez (por defecto: según núcleos físicos y memoria libre, máx. 8)
 ```
 

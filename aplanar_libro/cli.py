@@ -3,6 +3,7 @@
     aplanar-libro libro.pdf                  # los tres pasos
     aplanar-libro libro.pdf --solo aplanar   # solo el paso 1
     aplanar-libro libro.pdf --paginas 2,4,6  # aplanar solo esas páginas
+    aplanar-libro clase.pptx                 # PowerPoint: copia su texto a Markdown
 """
 from __future__ import annotations
 
@@ -32,10 +33,24 @@ def _duracion(segundos: float) -> str:
     return f"{m} min {s:02d} s" if m else f"{s} s"
 
 
+def _presentacion(entrada: Path) -> None:
+    """PowerPoint: no hay páginas que aplanar ni leer; se copia el texto que trae."""
+    from .presentacion import pptx_a_markdown
+    md = entrada.with_suffix("").with_name(entrada.stem + ".md")
+    print(f"aplanar-libro {__version__} · PowerPoint: se copia su texto, sin OCR")
+    inicio = time.perf_counter()
+    r = pptx_a_markdown(entrada, md)
+    print(f"  {r['diapositivas']} diapositivas, sin texto: {r['sin_texto'] or 'ninguna'}; "
+          f"imágenes: {r['imagenes']}, tablas: {r['tablas']}, gráficos: {r['graficos']}, "
+          f"con notas del orador: {r['con_notas']}")
+    print(f"  resultado: {md.name}")
+    print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="aplanar-libro",
                                 description="Aplana páginas curvas, pasa OCR en español y genera Markdown.")
-    p.add_argument("pdf", type=Path, help="PDF escaneado de entrada")
+    p.add_argument("pdf", type=Path, help="PDF escaneado, o presentación de PowerPoint (.pptx)")
     p.add_argument("--solo", choices=["aplanar", "leer", "markdown"],
                    help="correr un solo paso (por defecto, los tres)")
     p.add_argument("--paginas", help="páginas a aplanar: 2,4,6 | pares | impares (por defecto, todas)")
@@ -46,6 +61,13 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--nucleos", type=int, default=None,
                    help="páginas que se aplanan a la vez (por defecto, según los núcleos físicos y la memoria libre, máx. 8)")
     a = p.parse_args(argv)
+
+    extension = a.pdf.suffix.lower()
+    if extension == ".pptx":
+        _presentacion(a.pdf)
+        return
+    if extension == ".ppt":
+        raise SystemExit("Es un PowerPoint antiguo (.ppt). Ábrelo en PowerPoint, guárdalo como .pptx y vuelve a intentarlo.")
 
     base = a.pdf.with_suffix("")
     plano = base.with_name(base.name + "_plano.pdf")

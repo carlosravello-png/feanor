@@ -235,3 +235,58 @@ def test_folio_con_guion_y_espacio_no_tumba_la_corrida():
     assert _lecturas_de_folio("texto de la página\nmás texto\notra línea\ny otra\n66- ") == [66]
     assert _lecturas_de_folio("- 12 -\ntexto de la página\nmás texto\notra línea\nfin") == [12]
     assert _lecturas_de_folio("texto\nmás texto\notra línea\ny otra\n66- .") == [66]
+
+
+def test_powerpoint_a_markdown(tmp_path):
+    """Diapositiva en columnas, número dibujado junto a su renglón, tabla y notas."""
+    pptx = pytest.importorskip("pptx")
+    from pptx.util import Inches
+    from aplanar_libro.presentacion import pptx_a_markdown
+
+    prs = pptx.Presentation()
+    d = prs.slides.add_slide(prs.slide_layouts[6])            # diapositiva en blanco
+    caja = lambda x, y, w, h, t: d.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h)).text_frame.__setattr__("text", t)
+    caja(0.5, 0.2, 9, 0.6, "TITULO DE PRUEBA")
+    for k, (etapa, dato) in enumerate([("NIÑEZ", "0 a 6"), ("ADOLESCENCIA", "12 a 18")]):
+        caja(0.5 + 4.5 * k, 1.2, 4, 0.5, etapa)              # dos columnas anchas
+        caja(0.5 + 4.5 * k, 1.9, 4, 0.5, dato)
+    caja(0.5, 3.0, 0.4, 0.4, "1")                             # número dibujado aparte
+    caja(1.0, 2.95, 8, 0.5, "Primer objetivo")
+    d.shapes.add_shape(1, Inches(0.4), Inches(2.9), Inches(9.2), Inches(0.6))  # marco vacío encima
+    tabla = d.shapes.add_table(2, 2, Inches(0.5), Inches(4), Inches(6), Inches(1)).table
+    for (i, j), t in {(0, 0): "Fármaco", (0, 1): "Dosis", (1, 0): "A", (1, 1): "5 mg/kg"}.items():
+        tabla.cell(i, j).text = t
+    d.notes_slide.notes_text_frame.text = "Explicar con un caso."
+    prs.slides.add_slide(prs.slide_layouts[6])                # diapositiva vacía
+
+    entrada, salida = tmp_path / "clase.pptx", tmp_path / "clase.md"
+    prs.save(entrada)
+    r = pptx_a_markdown(entrada, salida)
+    md = salida.read_text(encoding="utf-8")
+    assert r["diapositivas"] == 2 and r["sin_texto"] == [2] and r["tablas"] == 1 and r["con_notas"] == 1
+    assert "sin OCR" in md
+    # columna por columna, no fila por fila
+    assert md.index("NIÑEZ") < md.index("0 a 6") < md.index("ADOLESCENCIA") < md.index("12 a 18")
+    assert "1. Primer objetivo" in md                         # el número se pega a su renglón
+    assert "| A | 5 mg/kg |" in md                            # la dosis queda en la fila de su fármaco
+    assert "Explicar con un caso." in md
+
+
+def test_powerpoint_rotulo_valor_se_lee_por_filas(tmp_path):
+    """Una lista «rótulo: valor» no es un par de columnas: cada valor va con su rótulo."""
+    pptx = pytest.importorskip("pptx")
+    from pptx.util import Inches
+    from aplanar_libro.presentacion import pptx_a_markdown
+
+    prs = pptx.Presentation()
+    d = prs.slides.add_slide(prs.slide_layouts[6])
+    for k, (rotulo, valor) in enumerate([("Antecedentes:", "historia del desarrollo"),
+                                         ("Motivo:", "conducta referida"),
+                                         ("Conclusiones:", "si es normativa o clínica")]):
+        d.shapes.add_textbox(Inches(0.5), Inches(1 + 0.6 * k), Inches(1.6), Inches(0.4)).text_frame.text = rotulo
+        d.shapes.add_textbox(Inches(2.2), Inches(1 + 0.6 * k), Inches(7), Inches(0.4)).text_frame.text = valor
+    entrada, salida = tmp_path / "lista.pptx", tmp_path / "lista.md"
+    prs.save(entrada)
+    pptx_a_markdown(entrada, salida)
+    md = salida.read_text(encoding="utf-8")
+    assert md.index("Antecedentes:") < md.index("historia del desarrollo") < md.index("Motivo:") < md.index("conducta referida")
