@@ -254,6 +254,9 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
         ]
     indices = [i for i, t in enumerate(textos, start=1) if es_indice(t)]
     folios = deducir_folios(textos, indices)
+    from .referencias import buscar_referencias
+    referencias = buscar_referencias(crudos, indices)
+    fin_ref = referencias["termina_antes_de"] if referencias else None
     vacias = 0
     for i, texto in enumerate(textos, start=1):
         if i in indices:
@@ -286,6 +289,10 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
             partes.append(f"<!-- origen del texto de esta página: {ORIGEN[tipos[i - 1]]} -->")
         if i in avisos:
             partes.append(f"<!-- REVISAR A MANO: {avisos[i]} -->")
+        if referencias and i == referencias["pagina"]:
+            partes.append(f"<!-- REFERENCIAS: empiezan en esta página, en el título «{referencias['titulo']}» -->")
+        if fin_ref and i == fin_ref["pagina"]:
+            partes.append(f"<!-- REFERENCIAS: terminan en esta página, antes de «{fin_ref['titulo']}» -->")
         partes.append("")
         partes.append(texto)
         partes.append("")
@@ -299,4 +306,4 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
     return {"paginas": len(doc), "sin_texto": vacias, "indices": indices,
             "a_revisar": sorted(avisos),
             "folios": {i: f for i, (f, _, _) in folios.items()},
-            "detalle": detalle}
+            "referencias": referencias, "detalle": detalle}

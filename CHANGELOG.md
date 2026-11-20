@@ -5,6 +5,112 @@ Las mediciones del banco y los umbrales de las versiones 0.2.0 a 0.4.5 están
 en [CALIBRACION.md](CALIBRACION.md). Las versiones anteriores a 0.4.6 están en
 el historial de git, cada una con su etiqueta (`v0.1.0` a `v0.4.5`).
 
+## 0.5.3 · Modo lote y sección de referencias (19/11/2026)
+
+**Qué cambió**
+- Modo lote (módulo nuevo `lote.py`): si la entrada es una carpeta, Feanor
+  convierte cada PDF de ella (sin entrar en subcarpetas) por la ruta digital,
+  con **una salida por archivo**, nombrada como el archivo. Todo va a
+  `<salida>\<nombre de la carpeta>\`.
+  - En el lote no se hace OCR: los escaneados se apartan y se listan. Opción
+    nueva `--solo-digitales`: aparta también los que traen OCR previo.
+  - Clase de cada PDF según el tipo de sus páginas (digital, ocr_previo,
+    escaneada, vacía), con una regla estricta que va escrita en el resumen.
+  - Un PDF roto queda como «fallo», con su motivo y el detalle en
+    `_errores.txt`, y el lote sigue.
+  - Retomar: los PDF ya convertidos con la misma versión (mismo SHA-256) se
+    saltan; con `--solo-digitales`, uno convertido antes con OCR previo pasa a
+    apartado.
+  - Resumen del lote: `_lote.md`, `_lote.csv` (una fila por PDF) y
+    `_lote.json`.
+- Sección de referencias (módulo nuevo `referencias.py`): en todo PDF, por el
+  título de la sección, el último fuera de las páginas tipo índice, hasta el
+  primer título de anexos o apéndices. El `.md` marca dónde empieza y dónde
+  termina, y la sección se copia a `<nombre>_referencias.md` con el texto
+  crudo, sin limpiar. El `.json` dice título, página, línea, cuántos
+  candidatos hubo y dónde termina.
+- Lote con metadatos, para un corpus muestreado: `--metadatos` une cada PDF
+  con su fila de un CSV por el nombre del archivo (obligatorias: `archivo`,
+  `handle`, `universidad`, `carrera`, `anio`) y lleva esos datos al
+  `_lote.csv` y al `.json` de cada tesis. No se procesa un PDF que no esté en
+  el CSV, cuyo SHA-256 no coincida con el anotado al bajarlo o cuya descarga
+  figure como fallida. `--anios` (candado): tampoco uno de un año fuera del
+  rango. Las filas del CSV sin su PDF se listan. `--destino`: todo en una
+  carpeta exacta.
+- Cuerpo para análisis léxico (módulo nuevo `cuerpo.py`, opción `--cuerpo` del
+  lote): `<nombre>_cuerpo.md` sin referencias ni anexos, sin páginas de índice
+  y sin encabezados ni pies repetidos (línea de las 3 primeras o 3 últimas que,
+  normalizada, aparece en el margen de más de la mitad de las páginas; solo se
+  quita en el margen). El `.md` de siempre no cambia. El `.json` cuenta lo
+  quitado.
+- Marcas «para revisar» en el lote, que no sacan la tesis: texto visible sobre
+  fotos de página completa (¿sello sobre un escaneo?), menos de 100 palabras
+  por página en el cuerpo, sin título de referencias, o referencias que
+  empiezan antes de la mitad del documento (se informa el porcentaje). Van en
+  `_lote.csv`, en el `.json` de cada tesis y en una sección de `_lote.md`.
+- Referencias: no cuentan las páginas de índice con líneas que terminan en un
+  número de página («Referencias ........ 45»), además de las que son
+  mayormente números sueltos.
+- `FEANOR.bat` acepta carpetas.
+- `FEANOR Y SU NAVAJA.bat`: atajo solo para las tesis de calibración del
+  léxico (2015–2017). Corre el lote con `--solo-digitales`, `--cuerpo`, `--metadatos
+  calibracion.csv`, `--anios 2015-2017` y `--destino "D:\tesis calibracion"`;
+  sin `calibracion.csv` en la carpeta, se niega. No es otra copia de Feanor:
+  llama al mismo código con las opciones fijadas.
+
+**Qué quedó igual a propósito**
+- La conversión de cada PDF: el lote usa la misma ruta digital que un archivo
+  suelto. La clasificación por página y sus umbrales.
+
+**Con qué se probó**
+- Pruebas automáticas: 33, cinco nuevas; las pruebas que ya existían no
+  cambian (a la función que arma los PDF de prueba se le agregó un tipo de
+  página, sin tocar los demás). Una prueba la búsqueda de referencias:
+  el título del índice no cuenta, termina antes de los anexos, sin título da
+  None y una mención en medio de una frase no cuenta. La otra prueba un lote
+  sintético con una tesis con referencias, una sin ellas, una escaneada, una
+  con OCR previo, un PDF roto y un archivo que no es PDF; comprueba el estado
+  de cada una, el texto crudo del DOI cortado en `_referencias.md` y la
+  segunda corrida con `--solo-digitales`. La tercera prueba el lote con
+  metadatos: una tesis de 2016 que pasa, una de 2019 que el candado detiene,
+  una con SHA-256 distinto, una con descarga fallida, un PDF sin fila en el
+  CSV y una fila sin su PDF, todo en una carpeta exacta con espacio en el
+  nombre. La cuarta prueba el cuerpo: fuera el encabezado repetido del margen
+  pero no la misma frase dentro del texto, fuera el índice con puntos guía,
+  las referencias y los anexos. La quinta, una tesis con un sello de texto
+  sobre fotos de página completa: sale «digital» y queda marcada para revisar.
+- Cuerpo en 13 PDF reales del autor: quita los encabezados y pies repetidos
+  («Metacognición», «Ravello Joo, C. E.», «Page X of Y», títulos corrientes)
+  y deja entre 249 y 565 palabras por página. El informe de MyLoft, con las
+  referencias en la página 11 de 23 seguidas de anexos, queda marcado para
+  revisar (44 %): por eso no se exige que las referencias estén en la segunda
+  mitad, que lo habría dejado sin referencias.
+- Búsqueda de referencias en 12 documentos reales del autor (preprints, un
+  foro y un informe, de 7 a 27 páginas): encontró la sección en los 12; en dos
+  detectó además dónde termina (antes de «Appendix A» y de «Anexos»).
+
+**Límites declarados**
+- Las referencias se buscan solo por el título. Una tesis cuyo título no esté
+  en la lista, o que lo tenga partido en dos líneas, sale «sin referencias» y
+  se lista. No se validó todavía con tesis: falta medir cuántas encuentra bien
+  en un conjunto revisado a mano.
+- Si las referencias siguen después de un anexo, o hay un anexo con título
+  «Referencias», se toma lo que dice la regla, no lo que quiso el autor.
+- En el lote no se hace OCR; las escaneadas solo se listan.
+- El CSV de metadatos se lee como UTF-8. Si se guarda desde Excel en otra
+  codificación, los acentos pueden salir mal; los nombres de archivo, que son
+  handles, no se afectan.
+- `FEANOR Y SU NAVAJA.bat` no se pudo correr aquí (es de Windows); se probó
+  el comando que llama, con las mismas opciones.
+- Un título de sección que coincida con el encabezado repetido y caiga en
+  las 3 primeras líneas de una página se quita del cuerpo junto con él.
+- El cuerpo incluye la portada, las dedicatorias y la hoja de jurado si tienen
+  texto digital; solo se quitan el índice, las referencias, los anexos y los
+  márgenes repetidos.
+- La regla de clase es estricta: una sola página dudosa saca un PDF de los
+  digitales. Los conteos por tipo de página van en `_lote.csv` para poder
+  aplicar otra regla.
+
 ## 0.5.2 · Carpeta de salida y registro .json en los tres formatos (19/11/2026)
 
 **Qué cambió**

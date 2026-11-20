@@ -80,6 +80,30 @@ def _escribir_json(ruta: Path, registro: dict) -> None:
     ruta.write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _escribir_referencias(md: Path, resumen: dict, registro: dict) -> None:
+    """Si se encontró la sección de referencias, la copia a <nombre>_referencias.md
+    con el texto CRUDO, sin ninguna limpieza (en una referencia, cada carácter
+    de un DOI o una URL es evidencia)."""
+    from .referencias import texto_de_referencias
+    ref = resumen.get("referencias")
+    registro["referencias"] = ref
+    if not ref:
+        print("  referencias: no se encontró el título de la sección")
+        return
+    crudos = [p["texto_crudo"] for p in resumen["detalle"]]
+    destino = md.with_name(md.stem + "_referencias.md")
+    partes = [f"<!-- Referencias de: {registro['archivo']['nombre']} -->",
+              "<!-- Texto CRUDO, tal como sale del PDF: sin unir guiones ni quitar nada. Empieza en el "
+              f"título «{ref['titulo']}» (página {ref['pagina']} del visor) y termina "
+              + (f"antes de «{ref['termina_antes_de']['titulo']}» (página {ref['termina_antes_de']['pagina']})"
+                 if ref["termina_antes_de"] else "al final del documento") + ". -->", ""]
+    for pagina, texto in texto_de_referencias(crudos, ref):
+        partes += [f"<!-- página {pagina} del visor -->", "", texto, ""]
+    destino.write_text("\n".join(partes), encoding="utf-8")
+    registro["referencias"] = {**ref, "archivo": destino.name}
+    print(f"  referencias: desde la página {ref['pagina']} («{ref['titulo']}») → {destino.name}")
+
+
 def _duracion(segundos: float) -> str:
     m, s = divmod(int(round(segundos)), 60)
     return f"{m} min {s:02d} s" if m else f"{s} s"
@@ -122,7 +146,8 @@ def _documento(entrada: Path, idioma: str, carpeta: Path, registro: dict) -> Non
     print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")
 
 
-def _ruta_digital(pdf: Path, md: Path, registro: dict, inicio: float) -> bool:
+def _ruta_digital(pdf: Path, md: Path, registro: dict, inicio: float,
+                  paginas_pdf: list[dict] | None = None) -> bool:
     """Si el PDF ya trae su texto, lo pasa a Markdown sin aplanar ni leer, y
     completa el registro.
 
@@ -131,7 +156,7 @@ def _ruta_digital(pdf: Path, md: Path, registro: dict, inicio: float) -> bool:
     """
     from .tipo_pdf import UMBRALES, clasificar_con_medidas, por_tipo, rangos
     from .markdown import ORIGEN
-    paginas_pdf = clasificar_con_medidas(pdf)
+    paginas_pdf = paginas_pdf or clasificar_con_medidas(pdf)
     tipos = [p["tipo"] for p in paginas_pdf]
     grupos = por_tipo(tipos)
     registro["umbrales_tipo"] = UMBRALES
@@ -157,13 +182,14 @@ def _ruta_digital(pdf: Path, md: Path, registro: dict, inicio: float) -> bool:
     registro.update({"ruta": "digital", "segundos": {"total": total},
                      "resumen": {k: resumen[k] for k in ("paginas", "sin_texto", "indices", "a_revisar")},
                      "paginas_md": resumen["detalle"]})
+    _escribir_referencias(md, resumen, registro)
     return True
 
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="aplanar-libro",
                                 description="Aplana páginas curvas, pasa OCR en español y genera Markdown.")
-    p.add_argument("pdf", type=Path, help="PDF, presentación de PowerPoint (.pptx) o documento de Word (.docx)")
+    p.add_argument("pdf", type=Path, help="PDF, PowerPoint (.pptx), Word (.docx) o una carpeta de PDF (modo lote)")
     p.add_argument("--solo", choices=["aplanar", "leer", "markdown"],
                    help="correr un solo paso (por defecto, los tres)")
     p.add_argument("--paginas", help="páginas a aplanar: 2,4,6 | pares | impares (por defecto, todas)")
@@ -175,10 +201,28 @@ def main(argv: list[str] | None = None) -> None:
                    help="leer con el OCR de Feanor aunque el PDF ya traiga texto (por ejemplo, un OCR previo malo)")
     p.add_argument("--salida", type=Path, default=None,
                    help=f"carpeta donde se escriben los resultados (por defecto {SALIDA_POR_DEFECTO})")
+    p.add_argument("--solo-digitales", action="store_true",
+                   help="modo lote: convertir solo las tesis de texto digital; las de OCR previo y las "
+                        "escaneadas se listan aparte, sin procesarlas")
+    p.add_argument("--metadatos", type=Path, default=None,
+                   help="modo lote: CSV con una fila por PDF (columnas archivo, handle, universidad, carrera, anio; "
+                        "opcionales titulo, estado, sha256)")
+    p.add_argument("--anios", default=None,
+                   help="modo lote, con --metadatos: solo procesar los años de este rango, por ejemplo 2015-2017")
+    p.add_argument("--cuerpo", action="store_true",
+                   help="modo lote: escribir además <nombre>_cuerpo.md para análisis léxico (sin referencias, anexos, "
+                        "índices ni encabezados o pies repetidos)")
+    p.add_argument("--destino", type=Path, default=None,
+                   help="modo lote: carpeta exacta donde va todo (sin subcarpeta con el nombre de la entrada)")
     p.add_argument("--nucleos", type=int, default=None,
                    help="páginas que se aplanan a la vez (por defecto, según los núcleos físicos y la memoria libre, máx. 8)")
     a = p.parse_args(argv)
 
+    if a.pdf.is_dir():
+        from .lote import procesar_carpeta
+        procesar_carpeta(a.pdf, a.salida, a.idioma, a.solo_digitales, a.metadatos, a.anios, a.destino,
+                         a.cuerpo)
+        return
     extension = a.pdf.suffix.lower()
     if extension == ".ppt":
         raise SystemExit("Es un PowerPoint antiguo (.ppt). Ábrelo en PowerPoint, guárdalo como .pptx y vuelve a intentarlo.")
@@ -263,6 +307,7 @@ def main(argv: list[str] | None = None) -> None:
               f"revisar a mano: {resumen['a_revisar'] or 'ninguna'}")
         registro["resumen"] = {k: resumen[k] for k in ("paginas", "sin_texto", "indices", "a_revisar")}
         registro["paginas_md"] = resumen["detalle"]
+        _escribir_referencias(md, resumen, registro)
 
     tiempos["total"] = round(time.perf_counter() - inicio_total, 1)
     registro.update({"ruta": "completa", "pasos": a.solo or "todos", "segundos": tiempos})

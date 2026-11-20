@@ -387,6 +387,9 @@ def _pdf_de_prueba(ruta, paginas):
             p.insert_image(p.rect, stream=png.tobytes())
         elif tipo == "escaneada":
             p.insert_image(p.rect, stream=png.tobytes())
+        elif tipo == "tapado_al_reves":                          # foto y, encima, un sello de texto visible
+            p.insert_image(p.rect, stream=png.tobytes())
+            p.insert_text((50, 780), "Repositorio institucional acceso abierto")
     doc.save(ruta)
 
 
@@ -521,3 +524,137 @@ def test_salida_en_su_carpeta_con_json(tmp_path):
     main([str(otro / "tesis.pdf"), "--salida", str(salida)])
     assert (salida / "tesis_2" / "tesis.json").exists()
     assert len(json.loads((salida / "tesis" / "tesis.json").read_text(encoding="utf-8"))["paginas_pdf"]) == 3
+
+
+def _tesis_sintetica(ruta, con_referencias=True):
+    """Tesis digital: índice (con «REFERENCIAS» como entrada), cuerpo,
+    referencias con un DOI cortado con guion, y anexos."""
+    doc = fitz.open()
+    paginas = [["ÍNDICE", "Introducción 1", "REFERENCIAS", "45", "ANEXOS", "50"],
+               ["I. INTRODUCCIÓN", "El presente estudio analiza la relación entre variables"],
+               ["Los resultados muestran una correlación moderada entre escalas"]]
+    if con_referencias:
+        paginas.append(["VII. REFERENCIAS BIBLIOGRÁFICAS", "Pérez, J. (2021). Título. Revista, 4(2), 1-10.",
+                        "https://doi.org/10.1016/j.psico-", "neuro.2021.105"])
+    paginas.append(["ANEXOS", "Anexo 1. Instrumento aplicado a la muestra"])
+    for lineas in paginas:
+        p = doc.new_page(width=600, height=800)
+        for k, l in enumerate(lineas):
+            p.insert_text((50, 60 + 18 * k), l)
+    doc.save(ruta)
+
+
+def test_referencias_por_titulo():
+    """Se toma el último título (el del índice no cuenta) y la sección termina
+    antes de los anexos; sin título, None."""
+    from aplanar_libro.referencias import buscar_referencias, texto_de_referencias
+    textos = ["ÍNDICE\nREFERENCIAS\n45", "cuerpo del trabajo",
+              "VII. REFERENCIAS BIBLIOGRÁFICAS\nPérez (2021).\nANEXOS\nInstrumento", "Anexo 2"]
+    r = buscar_referencias(textos)
+    assert r["pagina"] == 3 and r["candidatos"] == 2 and r["termina_antes_de"]["pagina"] == 3
+    assert texto_de_referencias(textos, r) == [(3, "VII. REFERENCIAS BIBLIOGRÁFICAS\nPérez (2021).")]
+    assert buscar_referencias(["Bibliografía\nAutor (2020)."])["termina_antes_de"] is None
+    assert buscar_referencias(["las referencias citadas en el texto"]) is None   # en medio de una frase no
+
+
+def test_lote_una_salida_por_pdf(tmp_path):
+    """Una carpeta: cada PDF con texto deja su carpeta (.md, .json y
+    _referencias.md con el texto crudo); la escaneada se aparta, el PDF roto
+    falla sin tumbar el lote, y en la segunda corrida lo hecho se salta."""
+    import csv
+    from aplanar_libro.cli import main
+    carpeta, salida = tmp_path / "tesis", tmp_path / "salida"
+    carpeta.mkdir()
+    _tesis_sintetica(carpeta / "20.500.12692_1.pdf")
+    _tesis_sintetica(carpeta / "20.500.12692_2.pdf", con_referencias=False)
+    _pdf_de_prueba(carpeta / "20.500.12692_3.pdf", ["escaneada"] * 3)
+    _pdf_de_prueba(carpeta / "20.500.12692_4.pdf", ["ocr_previo"] * 3)
+    (carpeta / "20.500.12692_5.pdf").write_bytes(b"%PDF-1.4 roto")
+    (carpeta / "notas.txt").write_text("x")
+
+    main([str(carpeta), "--salida", str(salida)])
+    base = salida / "tesis"
+    filas = {f["archivo"]: f for f in csv.DictReader(open(base / "_lote.csv", encoding="utf-8-sig"))}
+    assert [filas[f"20.500.12692_{k}.pdf"]["estado"] for k in range(1, 6)] == \
+        ["convertida", "convertida", "apartada", "convertida", "fallo"]
+    assert filas["20.500.12692_4.pdf"]["clase"] == "ocr_previo"
+    assert filas["20.500.12692_1.pdf"]["referencias_pagina"] == "4"
+    ref = (base / "20.500.12692_1" / "20.500.12692_1_referencias.md").read_text(encoding="utf-8")
+    assert "10.1016/j.psico-\nneuro" in ref and "Anexo 1" not in ref           # crudo, y sin los anexos
+    assert "20.500.12692_2.pdf" in (base / "_lote.md").read_text(encoding="utf-8").split("## Convertidas sin título de referencias encontrado")[1]
+
+    main([str(carpeta), "--salida", str(salida), "--solo-digitales"])
+    filas = {f["archivo"]: f for f in csv.DictReader(open(base / "_lote.csv", encoding="utf-8-sig"))}
+    assert filas["20.500.12692_1.pdf"]["estado"] == "ya_hecha"
+    assert filas["20.500.12692_4.pdf"]["estado"] == "apartada"                 # OCR previo, ahora aparte
+
+
+def test_lote_con_metadatos_y_candado(tmp_path):
+    """Con el CSV de la descarga: cada resultado lleva su handle, universidad,
+    carrera y año; fuera de 2015–2017, con SHA-256 distinto, con descarga
+    fallida o sin fila en el CSV, no se procesa. Todo va a la carpeta exacta."""
+    import csv
+    from aplanar_libro.cli import main
+    from aplanar_libro.entorno import _sha256
+    carpeta, destino = tmp_path / "tesis_calibracion", tmp_path / "tesis calibracion"
+    carpeta.mkdir()
+    for k in range(1, 6):
+        _tesis_sintetica(carpeta / f"20.500.12692_{k}.pdf")
+    filas = [("20.500.12692_1.pdf", "2016", _sha256(carpeta / "20.500.12692_1.pdf"), "bajada"),
+             ("20.500.12692_2.pdf", "2019", "", "bajada"),                      # fuera del candado
+             ("20.500.12692_3.pdf", "2015", "0" * 64, "bajada"),                # no es el que se bajó
+             ("20.500.12692_4.pdf", "2017", "", "falló"),
+             ("20.500.12692_9.pdf", "2016", "", "bajada")]                      # fila sin su PDF
+    csv_ruta = carpeta / "calibracion.csv"
+    with open(csv_ruta, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["handle", "archivo", "universidad", "carrera", "anio", "titulo", "estado", "sha256"])
+        for archivo, anio, sha, estado in filas:
+            w.writerow([archivo[:-4].replace("_", "/"), archivo, "UNT", "Educación", anio, "Título", estado, sha])
+
+    main([str(carpeta), "--solo-digitales", "--metadatos", str(csv_ruta), "--anios", "2015-2017",
+          "--destino", str(destino)])
+    res = {f["archivo"]: f for f in csv.DictReader(open(destino / "_lote.csv", encoding="utf-8-sig"))}
+    assert res["20.500.12692_1.pdf"]["estado"] == "convertida"
+    assert res["20.500.12692_1.pdf"]["handle"] == "20.500.12692/1" and res["20.500.12692_1.pdf"]["anio"] == "2016"
+    assert "candado" in res["20.500.12692_2.pdf"]["motivo"]
+    assert "SHA-256" in res["20.500.12692_3.pdf"]["motivo"]
+    assert "fallida" in res["20.500.12692_4.pdf"]["motivo"]
+    assert "no está en el CSV" in res["20.500.12692_5.pdf"]["motivo"]
+    assert {f["estado"] for k, f in res.items() if k != "20.500.12692_1.pdf"} == {"apartada"}
+    assert (destino / "20.500.12692_1" / "20.500.12692_1.md").exists()          # directo en la carpeta exacta
+    assert "20.500.12692_9.pdf" in (destino / "_lote.md").read_text(encoding="utf-8")
+
+
+def test_cuerpo_sin_margenes_repetidos_ni_referencias():
+    """El cuerpo deja fuera el encabezado repetido (solo en el margen), el
+    índice con puntos guía, las referencias y los anexos."""
+    from aplanar_libro.cuerpo import cuerpo
+    from aplanar_libro.referencias import buscar_referencias
+    enc = "UNIVERSIDAD CÉSAR VALLEJO"
+    textos = [f"{enc}\nÍNDICE\nIntroducción ........ 1\nMétodo ........ 5\nResultados ........ 9\nReferencias ........ 12\nAnexos ........ 14\n1",
+              f"{enc}\nI. INTRODUCCIÓN\nEl estudio se hizo en la {enc.title()} con estudiantes.\n2",
+              f"{enc}\nLos resultados muestran una correlación moderada.\n3",
+              f"{enc}\nREFERENCIAS\nPérez, J. (2021). Título.\n4",
+              f"{enc}\nANEXOS\nInstrumento aplicado\n5"]
+    ref = buscar_referencias(textos)
+    assert ref["pagina"] == 4 and ref["candidatos"] == 1          # el del índice con puntos guía no cuenta
+    texto, r = cuerpo(textos, ref)
+    assert "UNIVERSIDAD CÉSAR VALLEJO" not in texto               # encabezado de margen, fuera
+    assert "Universidad César Vallejo con estudiantes" in texto    # la misma frase en el texto, queda
+    assert "Pérez" not in texto and "Instrumento" not in texto and "Método" not in texto
+    assert r["paginas_indice_fuera"] == 1 and r["lineas_de_margen_quitadas"] == 3
+
+
+def test_lote_marca_texto_sobre_foto(tmp_path):
+    """Una tesis con texto visible sobre fotos de página completa (un sello
+    sobre un escaneo) sale «digital», pero se marca para revisar."""
+    import csv
+    from aplanar_libro.cli import main
+    carpeta = tmp_path / "t"
+    carpeta.mkdir()
+    _pdf_de_prueba(carpeta / "sello.pdf", ["tapado_al_reves"] * 3)
+    main([str(carpeta), "--salida", str(tmp_path / "s"), "--cuerpo"])
+    fila = next(csv.DictReader(open(tmp_path / "s" / "t" / "_lote.csv", encoding="utf-8-sig")))
+    assert fila["clase"] == "digital" and fila["paginas_texto_sobre_foto"] == "3"
+    assert "sobre una foto" in fila["revisar"] and "pocas palabras por página" in fila["revisar"]
