@@ -24,6 +24,10 @@ LETRA = "A-Za-zÁÉÍÓÚÜÑáéíóúüñ"
 _FOLIO = re.compile(r"^[0-9OoSlI|]{1,4}$")
 _NUMERO = re.compile(r"^\d{1,4}$")
 _CORTE = re.compile(f"([{LETRA}]+)\\s?-$")          # palabra cortada al final de línea
+# Una URL, un DOI o un correo que se corta con guion al final de la línea no se
+# une: el guion puede ser parte del enlace, y en una referencia el enlace es la
+# evidencia. Se deja tal cual (el texto crudo de cada página va además al JSON).
+_ENLACE = re.compile(r"(://|www\.|doi|@|\b10\.\d{4,9}/)", re.IGNORECASE)
 # Aviso que encabeza cada .md. Viaja con el archivo: si termina en manos de
 # otra persona o dentro de una IA, se lee antes que el texto.
 AVISO = """<!-- AVISO: texto obtenido por OCR, con errores. Sirve para leer, buscar y consultar con una IA.
@@ -101,7 +105,8 @@ def _unir_guiones(lineas: list[str], documento: str | set[tuple[str, str]]) -> l
     - si la forma con guion aparece a mitad de línea en el documento
       («Dor-lómin»), es un nombre compuesto y el guion se conserva;
     - en cualquier otro caso se une («Si-» + «rion» → «Sirion»,
-      «anterior-» + «mente» → «anteriormente»).
+      «anterior-» + «mente» → «anteriormente»);
+    - nunca dentro de una URL, un DOI o un correo (ver `_ENLACE`).
     """
     compuestos = documento if isinstance(documento, set) else compuestos_del_documento(documento)
     salida: list[str] = []
@@ -110,7 +115,10 @@ def _unir_guiones(lineas: list[str], documento: str | set[tuple[str, str]]) -> l
             m = _CORTE.search(salida[-1])
             sig = l.lstrip()
             m2 = re.match(f"[{LETRA}]+", sig)
-            if m and m2 and sig[0].islower():
+            ultimo = salida[-1].split()[-1] if salida[-1].split() else ""
+            siguiente = sig.split()[0] if sig.split() else ""
+            enlace = _ENLACE.search(ultimo) or _ENLACE.search(siguiente)
+            if m and m2 and sig[0].islower() and not enlace:
                 a, b = m.group(1), m2.group(0)
                 compuesto = (a.lower(), b.lower()) in compuestos
                 union = f"{a}-{b}" if compuesto else a + b
@@ -130,7 +138,8 @@ def limpiar(texto: str, documento: str | set[tuple[str, str]] | None = None) -> 
     1. Quita la sombra del lomo leída como texto (ver `_sin_ruido`).
     2. Quita el folio del encabezado o del pie, que suele salir mal leído.
        El folio verdadero se lee en la imagen.
-    3. Une las palabras cortadas con guion al final de la línea.
+    3. Une las palabras cortadas con guion al final de la línea, salvo dentro
+       de una URL, un DOI o un correo.
 
     `documento` es el texto de todas las páginas (o sus compuestos ya
     calculados con `compuestos_del_documento`); se usa para decidir si un
@@ -224,7 +233,9 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
             avisos[r["pagina"]] = r["motivo"]          # informes de la versión 0.1.0
 
     doc = fitz.open(entrada)
-    textos = [pagina.get_text("text").strip() for pagina in doc]
+    crudos = [pagina.get_text("text") for pagina in doc]
+    textos = [t.strip() for t in crudos]
+    detalle: list[dict] = []
     documento = compuestos_del_documento("\n".join(textos))
     if tipos:
         from .tipo_pdf import por_tipo, rangos
@@ -278,7 +289,14 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
         partes.append("")
         partes.append(texto)
         partes.append("")
+        origen, parte = origenes.get(i, (None, "simple"))
+        detalle.append({"pagina": i, "pagina_original": origen or i, "parte": parte,
+                        "folio": folios[i][0] if i in folios else None,
+                        "folio_estado": folios[i][1] if i in folios else None,
+                        "indice": i in indices, "limpiada": bool(limpieza) and i not in indices,
+                        "revisar": avisos.get(i), "texto_crudo": crudos[i - 1]})
     Path(salida).write_text("\n".join(partes), encoding="utf-8")
     return {"paginas": len(doc), "sin_texto": vacias, "indices": indices,
             "a_revisar": sorted(avisos),
-            "folios": {i: f for i, (f, _, _) in folios.items()}}
+            "folios": {i: f for i, (f, _, _) in folios.items()},
+            "detalle": detalle}

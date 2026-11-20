@@ -10,6 +10,12 @@ Sin --solo ni --paginas, Feanor mira antes de qué tipo es cada página: si el
 PDF ya trae su texto (digital, o con un OCR previo), lo copia directo a
 Markdown sin aplanar ni leer (ruta digital). --releer obliga a leerlo con el
 OCR de Feanor aunque ya traiga texto.
+
+Cada archivo deja su resultado en una carpeta propia dentro de la carpeta de
+salida (por defecto D:\\FEANOR_salida; otra con --salida): el .md y un .json con
+el registro de lo que se hizo. Si la carpeta ya existe y es del mismo archivo
+(mismo SHA-256), se reemplaza; si es de otro archivo con el mismo nombre, se usa
+una carpeta nueva con sufijo (_2, _3…) y se avisa.
 """
 from __future__ import annotations
 
@@ -21,7 +27,7 @@ from pathlib import Path
 
 from . import __version__
 from .aplanar import ULTIMA_CORRIDA, aplanar_pdf, resultados_a_dict
-from .entorno import entorno
+from .entorno import _sha256, entorno, entorno_ocr
 from .leer import leer_pdf
 from .markdown import pdf_a_markdown
 
@@ -34,15 +40,55 @@ def _paginas(texto: str | None) -> list[int] | None:
     return [int(x) for x in texto.split(",") if x.strip()]
 
 
+SALIDA_POR_DEFECTO = Path(r"D:\FEANOR_salida")
+FORMATO_JSON = 1          # sube si cambia la forma del .json
+
+
+def _carpeta_salida(entrada: Path, salida: Path | None, sha: str) -> Path:
+    """La carpeta de este archivo dentro de la carpeta de salida."""
+    if salida is None:
+        salida = SALIDA_POR_DEFECTO
+        if not Path(salida.anchor).exists():
+            salida = entrada.parent / "FEANOR_salida"
+            print(f"  OJO: no existe {SALIDA_POR_DEFECTO.anchor}; el resultado va a {salida}")
+    k = 1
+    while True:
+        carpeta = salida / (entrada.stem if k == 1 else f"{entrada.stem}_{k}")
+        previo = carpeta / f"{entrada.stem}.json"
+        if not carpeta.exists() or not previo.exists():
+            break
+        try:
+            if json.loads(previo.read_text(encoding="utf-8"))["archivo"]["sha256"] == sha:
+                break
+        except Exception:
+            pass
+        k += 1
+    if k > 1:
+        print(f"  OJO: ya había otro archivo llamado {entrada.name} en la salida; este va a {carpeta.name}")
+    carpeta.mkdir(parents=True, exist_ok=True)
+    return carpeta
+
+
+def _registro(entrada: Path, sha: str, tipo: str, idioma: str) -> dict:
+    return {"formato_json": FORMATO_JSON, "fecha": datetime.now().isoformat(timespec="seconds"),
+            "archivo": {"nombre": entrada.name, "ruta": str(entrada.resolve()),
+                        "bytes": entrada.stat().st_size, "sha256": sha},
+            "tipo_entrada": tipo, "entorno": entorno_ocr(idioma)}
+
+
+def _escribir_json(ruta: Path, registro: dict) -> None:
+    ruta.write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _duracion(segundos: float) -> str:
     m, s = divmod(int(round(segundos)), 60)
     return f"{m} min {s:02d} s" if m else f"{s} s"
 
 
-def _presentacion(entrada: Path, idioma: str) -> None:
+def _presentacion(entrada: Path, idioma: str, carpeta: Path, registro: dict) -> None:
     """PowerPoint: se copia el texto que trae; las imágenes con texto se leen con OCR."""
     from .presentacion import pptx_a_markdown
-    md = entrada.with_suffix("").with_name(entrada.stem + ".md")
+    md = carpeta / f"{entrada.stem}.md"
     print(f"aplanar-libro {__version__} · PowerPoint: texto copiado; OCR solo en las imágenes con texto")
     inicio = time.perf_counter()
     r = pptx_a_markdown(entrada, md, idioma=idioma)
@@ -52,14 +98,16 @@ def _presentacion(entrada: Path, idioma: str) -> None:
           f"imágenes: {r['imagenes']} (con texto leído por OCR: {r['imagenes_leidas']}, "
           f"con texto escaso marcado [?]: {r['imagenes_escasas']}), "
           f"tablas: {r['tablas']}, gráficos: {r['graficos']}, con notas del orador: {r['con_notas']}")
-    print(f"  resultado: {md.name}")
+    registro.update({"resumen": r, "segundos": {"total": round(time.perf_counter() - inicio, 1)}})
+    _escribir_json(carpeta / f"{entrada.stem}.json", registro)
+    print(f"  resultado: {carpeta}")
     print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")
 
 
-def _documento(entrada: Path, idioma: str) -> None:
+def _documento(entrada: Path, idioma: str, carpeta: Path, registro: dict) -> None:
     """Word: se copia el texto que trae; las imágenes con texto se leen con OCR."""
     from .documento import docx_a_markdown
-    md = entrada.with_suffix("").with_name(entrada.stem + ".md")
+    md = carpeta / f"{entrada.stem}.md"
     print(f"aplanar-libro {__version__} · Word: texto copiado; OCR solo en las imágenes con texto")
     inicio = time.perf_counter()
     r = docx_a_markdown(entrada, md, idioma=idioma)
@@ -68,20 +116,27 @@ def _documento(entrada: Path, idioma: str) -> None:
     print(f"  {r['parrafos']} párrafos, {r['titulos']} títulos, {r['tablas']} tablas, "
           f"{r['notas']} notas, {r['cuadros']} cuadros de texto; imágenes: {r['imagenes']} "
           f"(con texto leído por OCR: {r['imagenes_leidas']}, con texto escaso marcado [?]: {r['imagenes_escasas']})")
-    print(f"  resultado: {md.name}")
+    registro.update({"resumen": r, "segundos": {"total": round(time.perf_counter() - inicio, 1)}})
+    _escribir_json(carpeta / f"{entrada.stem}.json", registro)
+    print(f"  resultado: {carpeta}")
     print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")
 
 
-def _ruta_digital(pdf: Path, md: Path, tiempos_json: Path, inicio: float) -> bool:
-    """Si el PDF ya trae su texto, lo pasa a Markdown sin aplanar ni leer.
+def _ruta_digital(pdf: Path, md: Path, registro: dict, inicio: float) -> bool:
+    """Si el PDF ya trae su texto, lo pasa a Markdown sin aplanar ni leer, y
+    completa el registro.
 
-    Devuelve False (y no hace nada) si la mayoría de las páginas con algo son
+    Devuelve False (y no escribe nada) si la mayoría de las páginas con algo son
     fotos sin texto: ese PDF va por la ruta completa.
     """
-    from .tipo_pdf import clasificar, por_tipo, rangos
+    from .tipo_pdf import UMBRALES, clasificar_con_medidas, por_tipo, rangos
     from .markdown import ORIGEN
-    tipos = clasificar(pdf)
+    paginas_pdf = clasificar_con_medidas(pdf)
+    tipos = [p["tipo"] for p in paginas_pdf]
     grupos = por_tipo(tipos)
+    registro["umbrales_tipo"] = UMBRALES
+    registro["paginas_pdf"] = paginas_pdf
+    registro["tipos_de_pagina"] = {t: rangos(n) for t, n in grupos.items()}
     con_texto = sum(len(grupos.get(t, [])) for t in ("digital", "ocr_previo", "dudosa"))
     escaneadas = len(grupos.get("escaneada", []))
     print(f"aplanar-libro {__version__} · tipo de cada página:")
@@ -99,12 +154,9 @@ def _ruta_digital(pdf: Path, md: Path, tiempos_json: Path, inicio: float) -> boo
     total = round(time.perf_counter() - inicio, 1)
     print(f"  {resumen['paginas']} páginas, {resumen['sin_texto']} sin texto, "
           f"revisar a mano: {resumen['a_revisar'] or 'ninguna'}")
-    print(f"  resultado: {md.name}")
-    registro = {"fecha": datetime.now().isoformat(timespec="seconds"), "archivo": pdf.name,
-                "pasos": "ruta digital", "segundos": {"total": total},
-                "tipos_de_pagina": {t: rangos(n) for t, n in grupos.items()}}
-    tiempos_json.write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Listo. Tiempo total: {_duracion(total)}")
+    registro.update({"ruta": "digital", "segundos": {"total": total},
+                     "resumen": {k: resumen[k] for k in ("paginas", "sin_texto", "indices", "a_revisar")},
+                     "paginas_md": resumen["detalle"]})
     return True
 
 
@@ -121,28 +173,36 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--dpi", type=int, default=300)
     p.add_argument("--releer", action="store_true",
                    help="leer con el OCR de Feanor aunque el PDF ya traiga texto (por ejemplo, un OCR previo malo)")
+    p.add_argument("--salida", type=Path, default=None,
+                   help=f"carpeta donde se escriben los resultados (por defecto {SALIDA_POR_DEFECTO})")
     p.add_argument("--nucleos", type=int, default=None,
                    help="páginas que se aplanan a la vez (por defecto, según los núcleos físicos y la memoria libre, máx. 8)")
     a = p.parse_args(argv)
 
     extension = a.pdf.suffix.lower()
-    if extension == ".pptx":
-        _presentacion(a.pdf, a.idioma)
-        return
     if extension == ".ppt":
         raise SystemExit("Es un PowerPoint antiguo (.ppt). Ábrelo en PowerPoint, guárdalo como .pptx y vuelve a intentarlo.")
-    if extension == ".docx":
-        _documento(a.pdf, a.idioma)
-        return
     if extension == ".doc":
         raise SystemExit("Es un Word antiguo (.doc). Ábrelo en Word, guárdalo como .docx y vuelve a intentarlo.")
+    if not a.pdf.is_file():
+        raise SystemExit(f"No encuentro el archivo: {a.pdf}")
+    sha = _sha256(a.pdf)
+    carpeta = _carpeta_salida(a.pdf, a.salida, sha)
+    tipo = {".pptx": "pptx", ".docx": "docx"}.get(extension, "pdf")
+    registro = _registro(a.pdf, sha, tipo, a.idioma)
+    if tipo == "pptx":
+        _presentacion(a.pdf, a.idioma, carpeta, registro)
+        return
+    if tipo == "docx":
+        _documento(a.pdf, a.idioma, carpeta, registro)
+        return
 
-    base = a.pdf.with_suffix("")
-    plano = base.with_name(base.name + "_plano.pdf")
-    ocr = base.with_name(base.name + "_ocr.pdf")
-    md = base.with_name(base.name + "_ocr.md")
-    informe = base.with_name(base.name + "_informe.json")
-    tiempos_json = base.with_name(base.name + "_tiempos.json")
+    nombre = a.pdf.stem
+    plano = carpeta / f"{nombre}_plano.pdf"
+    ocr = carpeta / f"{nombre}_ocr.pdf"
+    md = carpeta / f"{nombre}.md"
+    informe = carpeta / f"{nombre}_informe.json"
+    registro_json = carpeta / f"{nombre}.json"
     tiempos: dict[str, float] = {}
     inicio_total = time.perf_counter()
 
@@ -157,8 +217,15 @@ def main(argv: list[str] | None = None) -> None:
         paginas = [i for i in range(1, n + 1) if (i % 2 == 0) == (paginas == "pares")]
 
     if not a.solo and not a.paginas and not a.releer:
-        if _ruta_digital(a.pdf, md, tiempos_json, inicio_total):
+        if _ruta_digital(a.pdf, md, registro, inicio_total):
+            _escribir_json(registro_json, registro)
+            print(f"  resultado: {carpeta}")
+            print(f"Listo. Tiempo total: {_duracion(registro['segundos']['total'])}")
             return
+    else:
+        from .tipo_pdf import UMBRALES, clasificar_con_medidas
+        registro["umbrales_tipo"] = UMBRALES
+        registro["paginas_pdf"] = clasificar_con_medidas(a.pdf)
 
     donde = entorno()
     print(f"aplanar-libro {__version__} · optimizador: {donde['optimizador']} · "
@@ -194,13 +261,16 @@ def main(argv: list[str] | None = None) -> None:
         medir("markdown", t)
         print(f"  {resumen['paginas']} páginas, {resumen['sin_texto']} sin texto, "
               f"revisar a mano: {resumen['a_revisar'] or 'ninguna'}")
+        registro["resumen"] = {k: resumen[k] for k in ("paginas", "sin_texto", "indices", "a_revisar")}
+        registro["paginas_md"] = resumen["detalle"]
 
     tiempos["total"] = round(time.perf_counter() - inicio_total, 1)
-    registro = {"fecha": datetime.now().isoformat(timespec="seconds"), "archivo": a.pdf.name,
-                "pasos": a.solo or "todos", "segundos": tiempos, "entorno": donde}
+    registro.update({"ruta": "completa", "pasos": a.solo or "todos", "segundos": tiempos})
+    registro["entorno"].update({k: v for k, v in donde.items() if k not in registro["entorno"]})
     if ULTIMA_CORRIDA:
         registro["procesos"] = dict(ULTIMA_CORRIDA)
-    tiempos_json.write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+    _escribir_json(registro_json, registro)
+    print(f"  resultado: {carpeta}")
     print(f"Listo. Tiempo total: {_duracion(tiempos['total'])}")
 
 

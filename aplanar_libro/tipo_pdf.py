@@ -29,6 +29,9 @@ COBERTURA_TAPA = 0.90     # una imagen así de grande tapa el texto que se dibuj
 OCR_SI = 0.90             # fracción de texto invisible o tapado para decir «OCR previo»
 OCR_NO = 0.10             # por debajo de esto, el texto es digital; entre ambos, «dudosa»
 
+UMBRALES = {"palabras_minimas": PALABRAS_MINIMAS, "cobertura_foto": COBERTURA_FOTO,
+            "cobertura_tapa": COBERTURA_TAPA, "ocr_si": OCR_SI, "ocr_no": OCR_NO}
+
 TIPOS = ("digital", "ocr_previo", "dudosa", "escaneada", "vacia")
 
 
@@ -62,22 +65,41 @@ def _cobertura_imagen(pagina) -> float:
     return mayor
 
 
-def tipo_de_pagina(pagina) -> str:
-    palabras = len(pagina.get_text("text").split())
-    if palabras >= PALABRAS_MINIMAS:
-        ocr = _fraccion_ocr(pagina)
-        if ocr >= OCR_SI:
+def medidas_de_pagina(pagina) -> dict:
+    """Las medidas con que se decide el tipo de una página. Van al JSON para que
+    la clasificación se pueda recalcular con otros umbrales sin abrir el PDF."""
+    return {"palabras": len(pagina.get_text("text").split()),
+            "fraccion_ocr": round(_fraccion_ocr(pagina), 4),
+            "cobertura_imagen": round(_cobertura_imagen(pagina), 4)}
+
+
+def tipo_segun_medidas(m: dict) -> str:
+    if m["palabras"] >= PALABRAS_MINIMAS:
+        if m["fraccion_ocr"] >= OCR_SI:
             return "ocr_previo"
-        if ocr > OCR_NO:
+        if m["fraccion_ocr"] > OCR_NO:
             return "dudosa"
         return "digital"
-    return "escaneada" if _cobertura_imagen(pagina) >= COBERTURA_FOTO else "vacia"
+    return "escaneada" if m["cobertura_imagen"] >= COBERTURA_FOTO else "vacia"
+
+
+def tipo_de_pagina(pagina) -> str:
+    return tipo_segun_medidas(medidas_de_pagina(pagina))
 
 
 def clasificar(pdf: Path) -> list[str]:
     """El tipo de cada página, en orden (la página 1 es el elemento 0)."""
+    return [m["tipo"] for m in clasificar_con_medidas(pdf)]
+
+
+def clasificar_con_medidas(pdf: Path) -> list[dict]:
+    """Por página: su número, sus medidas y el tipo que resulta de ellas."""
+    salida = []
     with fitz.open(pdf) as doc:
-        return [tipo_de_pagina(p) for p in doc]
+        for i, p in enumerate(doc, start=1):
+            m = medidas_de_pagina(p)
+            salida.append({"pagina": i, "tipo": tipo_segun_medidas(m), **m})
+    return salida
 
 
 def rangos(numeros: list[int]) -> str:

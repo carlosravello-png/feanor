@@ -5,6 +5,58 @@ Las mediciones del banco y los umbrales de las versiones 0.2.0 a 0.4.5 están
 en [CALIBRACION.md](CALIBRACION.md). Las versiones anteriores a 0.4.6 están en
 el historial de git, cada una con su etiqueta (`v0.1.0` a `v0.4.5`).
 
+## 0.5.2 · Carpeta de salida y registro .json en los tres formatos (19/11/2026)
+
+**Qué cambió**
+- Carpeta de salida: cada archivo deja sus resultados en una carpeta propia
+  dentro de `D:\FEANOR_salida` (opción nueva `--salida` para otra). Si no
+  existe el disco `D:`, en `FEANOR_salida` al lado del original. El mismo
+  archivo (mismo SHA-256) reemplaza su carpeta; otro con el mismo nombre va a
+  `_2`, `_3`…, y se avisa: nada se pisa en silencio.
+- El `.md` de un PDF se llama ahora `libro.md`, no `libro_ocr.md`, en las dos
+  rutas. `libro_tiempos.json` desaparece: su contenido va a `libro.json`.
+- `libro.json` en los tres formatos (PDF, Word, PowerPoint): archivo de origen
+  con su SHA-256; versión de Feanor y commit de git (con `sucio` si había
+  cambios sin commitear); PyMuPDF, Tesseract y el archivo de modelo del idioma
+  con tamaño y SHA-256; OCRmyPDF; Ghostscript (buscado también en
+  `C:\Program Files\gs`); tiempos y resumen.
+- En PDF, por página del original: el tipo y las medidas con que se decidió
+  (palabras, fracción de texto invisible o tapado, cobertura de imagen), con
+  los umbrales usados. Por página del `.md`: página de origen, folio y si se
+  leyó o se dedujo, si se limpió, el aviso de revisión, y el **texto crudo sin
+  limpiar**.
+- La limpieza ya no une una palabra cortada con guion al final de la línea
+  cuando el trozo de antes o el de después tiene forma de URL, DOI o correo
+  (`://`, `www.`, `doi`, `@`, `10.xxxx/`): el guion puede ser parte del
+  enlace, y en una referencia el enlace es la evidencia.
+
+**Qué quedó igual a propósito**
+- La lectura de PDF, PowerPoint y Word. Los umbrales de la clasificación por
+  página: `tipo_pdf.py` solo devuelve además sus medidas.
+- La limpieza en todo lo demás.
+
+**Con qué se probó**
+- Pruebas automáticas: 28, dos nuevas (URL, DOI y correo cortados con guion
+  que no se unen, junto a una palabra que sí; y PDF, Word y PowerPoint con su
+  carpeta y su `.json`, el mismo archivo que reemplaza su carpeta y otro con
+  el mismo nombre que va a `_2`). La prueba de la ruta digital comprueba
+  además que las medidas viajan con el tipo.
+- Ruta completa (escaneo) de punta a punta con un PDF sintético de dos
+  páginas: escribe sus cinco archivos en la carpeta y el texto crudo en el
+  `.json`.
+
+**Límites declarados**
+- Ghostscript se busca en el PATH y en `C:\Program Files\gs`; si está en otro
+  lugar, el `.json` lo deja vacío aunque OCRmyPDF lo haya usado.
+- El modelo de Tesseract se identifica por su archivo y su hash, no por su
+  nombre (`tessdata`, `tessdata_fast` o `tessdata_best`): el hash dice si dos
+  corridas usaron el mismo, no cuál de los tres es.
+- El commit solo se registra si Feanor corre desde una copia del repo
+  (instalado con `pip install -e`).
+- Dos archivos distintos con el mismo nombre quedan en carpetas `_2`, `_3`
+  según el orden en que se conviertan; para el modo lote se nombrará por
+  identificador.
+
 ## 0.5.1 · Word (.docx) a Markdown (19/11/2026)
 
 **Qué cambió**

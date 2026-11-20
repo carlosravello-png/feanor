@@ -404,18 +404,21 @@ def test_ruta_digital_de_punta_a_punta(tmp_path):
     from aplanar_libro.cli import _ruta_digital
     pdf = tmp_path / "libro.pdf"
     _pdf_de_prueba(pdf, ["digital"] * 4 + ["ocr_previo"])
-    md = tmp_path / "libro_ocr.md"
-    assert _ruta_digital(pdf, md, tmp_path / "t.json", 0.0)
+    md = tmp_path / "libro.md"
+    registro = {}
+    assert _ruta_digital(pdf, md, registro, 0.0)
     texto = md.read_text(encoding="utf-8")
     assert "sin OCR de Feanor" in texto and "Texto extraído por OCR" not in texto
     assert "1–4: texto digital" in texto and "5: OCR previo" in texto
     assert "origen del texto de esta página: OCR previo" in texto   # la página distinta va anotada
     assert not (tmp_path / "libro_plano.pdf").exists()               # no se aplanó nada
+    assert [p["tipo"] for p in registro["paginas_pdf"]] == ["digital"] * 4 + ["ocr_previo"]
+    assert registro["paginas_pdf"][4]["fraccion_ocr"] == 1.0           # la medida va con la etiqueta
 
     fotos = tmp_path / "fotos.pdf"
     _pdf_de_prueba(fotos, ["escaneada"] * 3 + ["digital"])
-    assert not _ruta_digital(fotos, tmp_path / "fotos_ocr.md", tmp_path / "f.json", 0.0)
-    assert not (tmp_path / "fotos_ocr.md").exists()
+    assert not _ruta_digital(fotos, tmp_path / "fotos.md", {}, 0.0)
+    assert not (tmp_path / "fotos.md").exists()
 
 
 def test_word_a_markdown(tmp_path):
@@ -466,3 +469,55 @@ def test_word_listas_numeradas(tmp_path):
     md = salida.read_text(encoding="utf-8")
     assert "1. primer paso" in md and "2. segundo paso" in md and "3. tercer paso" in md
     assert "- una viñeta" in md
+
+
+def test_enlace_cortado_con_guion_no_se_une():
+    """Una URL, un DOI o un correo cortado con guion al final de la línea se deja
+    tal cual: el guion puede ser parte del enlace. Una palabra sí se une."""
+    from aplanar_libro.markdown import limpiar
+    t = limpiar("Lineamientos. https://www.sistemas-\neducativos.gob.pe/a.pdf\n"
+                "Revista. https://doi.org/10.1016/j.psico-\nneuro.2021.105\n"
+                "correo juan.pe-\nrez@gmail.com y una palabra anterior-\nmente")
+    assert "https://www.sistemas-\neducativos.gob.pe" in t
+    assert "10.1016/j.psico-\nneuro" in t
+    assert "juan.pe-\nrez@gmail.com" in t
+    assert "anteriormente" in t
+
+
+def test_salida_en_su_carpeta_con_json(tmp_path):
+    """PDF, PowerPoint y Word dejan su .md y su .json en una carpeta propia. El
+    mismo archivo reemplaza su carpeta; otro con el mismo nombre va a _2."""
+    import json
+    docx = pytest.importorskip("docx")
+    from pptx import Presentation
+    from aplanar_libro.cli import main
+    from aplanar_libro.entorno import _sha256
+
+    origen, salida = tmp_path / "origen", tmp_path / "salida"
+    origen.mkdir()
+    pdf = origen / "tesis.pdf"
+    _pdf_de_prueba(pdf, ["digital"] * 3)
+    d = docx.Document(); d.add_paragraph("texto del trabajo"); d.save(origen / "trabajo.docx")
+    pr = Presentation(); pr.slides.add_slide(pr.slide_layouts[5]).shapes.title.text = "Clase"
+    pr.save(origen / "clase.pptx")
+
+    for archivo, tipo in ((pdf, "pdf"), (origen / "trabajo.docx", "docx"), (origen / "clase.pptx", "pptx")):
+        main([str(archivo), "--salida", str(salida)])
+        carpeta = salida / archivo.stem
+        assert (carpeta / f"{archivo.stem}.md").exists()
+        r = json.loads((carpeta / f"{archivo.stem}.json").read_text(encoding="utf-8"))
+        assert r["tipo_entrada"] == tipo and r["archivo"]["sha256"] == _sha256(archivo)
+        assert r["entorno"]["feanor"] and "resumen" in r and "modelo_tesseract" in r["entorno"]
+
+    r = json.loads((salida / "tesis" / "tesis.json").read_text(encoding="utf-8"))
+    assert r["ruta"] == "digital" and len(r["paginas_pdf"]) == 3 and "cobertura_imagen" in r["paginas_pdf"][0]
+    assert "Texto de prueba" in r["paginas_md"][0]["texto_crudo"]
+    assert r["umbrales_tipo"]["ocr_si"] == 0.90
+
+    main([str(pdf), "--salida", str(salida)])                    # el mismo archivo: misma carpeta
+    assert not (salida / "tesis_2").exists()
+    otro = tmp_path / "otro"; otro.mkdir()
+    _pdf_de_prueba(otro / "tesis.pdf", ["digital"] * 2)          # otro archivo, mismo nombre
+    main([str(otro / "tesis.pdf"), "--salida", str(salida)])
+    assert (salida / "tesis_2" / "tesis.json").exists()
+    assert len(json.loads((salida / "tesis" / "tesis.json").read_text(encoding="utf-8"))["paginas_pdf"]) == 3
