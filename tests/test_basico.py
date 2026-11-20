@@ -390,6 +390,15 @@ def _pdf_de_prueba(ruta, paginas):
         elif tipo == "tapado_al_reves":                          # foto y, encima, un sello de texto visible
             p.insert_image(p.rect, stream=png.tobytes())
             p.insert_text((50, 780), "Repositorio institucional acceso abierto")
+        elif tipo == "escaneada_con_sello":                      # foto legible y un sello corto (menos de 3 palabras)
+            acta = np.full((2200, 1700), 255, np.uint8)
+            for j, linea in enumerate(["ACTA DE SUSTENTACION", "El jurado aprueba la tesis"]):
+                cv2.putText(acta, linea, (120, 300 + 100 * j), cv2.FONT_HERSHEY_SIMPLEX, 1.8, 0, 3)
+            p.insert_image(p.rect, stream=cv2.imencode(".png", acta)[1].tobytes())
+            p.insert_text((50, 780), "Repositorio UCV")
+        elif tipo == "imagen_en_blanco":                         # foto sin nada que leer
+            blanco = cv2.imencode(".png", np.full((800, 600, 3), 255, np.uint8))[1]
+            p.insert_image(p.rect, stream=blanco.tobytes())
     doc.save(ruta)
 
 
@@ -658,3 +667,175 @@ def test_lote_marca_texto_sobre_foto(tmp_path):
     fila = next(csv.DictReader(open(tmp_path / "s" / "t" / "_lote.csv", encoding="utf-8-sig")))
     assert fila["clase"] == "digital" and fila["paginas_texto_sobre_foto"] == "3"
     assert "sobre una foto" in fila["revisar"] and "pocas palabras por página" in fila["revisar"]
+
+
+def test_distancia_y_tasa_de_error_por_palabra():
+    from aplanar_libro.comparacion import distancia, metricas
+    assert distancia(["a", "b", "c"], ["a", "x", "c", "d"]) == 2       # una sustitución y una inserción
+    m = metricas("El jurado aprueba la tesis.", "El jurado aprneba la tesis")
+    assert m["palabras_nativo"] == 5 and m["errores"] == 1 and m["wer"] == 0.2
+
+
+def test_lote_automatico_un_metodo_por_archivo(tmp_path):
+    """Con --auto: cada archivo con su método, y los de otro tipo o dañados a
+    fallos con su motivo. Sin --auto, el lote sigue como en la 0.5.3."""
+    import csv
+    docx = pytest.importorskip("docx")
+    from pptx import Presentation
+    from aplanar_libro.cli import main
+    carpeta, salida = tmp_path / "mezcla", tmp_path / "salida"
+    carpeta.mkdir()
+    _tesis_sintetica(carpeta / "tesis.pdf")
+    d = docx.Document(); d.add_paragraph("texto del trabajo"); d.save(carpeta / "trabajo.docx")
+    pr = Presentation(); pr.slides.add_slide(pr.slide_layouts[5]).shapes.title.text = "Clase"
+    pr.save(carpeta / "clase.pptx")
+    (carpeta / "viejo.doc").write_bytes(b"x")
+    (carpeta / "notas.txt").write_text("x")
+    (carpeta / "roto.pdf").write_bytes(b"%PDF-1.4 roto")
+    hay_ocr = _hay_ocr()
+    if hay_ocr:
+        _pdf_de_prueba(carpeta / "fotos.pdf", ["escaneada"] * 2)
+
+    main([str(carpeta), "--auto", "--salida", str(salida)])
+    res = {f["archivo"]: f for f in csv.DictReader(open(salida / "mezcla" / "_lote.csv", encoding="utf-8-sig"))}
+    assert res["tesis.pdf"]["metodo"] == "texto_nativo" and res["tesis.pdf"]["estado"] == "convertida"
+    assert res["trabajo.docx"]["metodo"] == "docx" and res["clase.pptx"]["metodo"] == "pptx"
+    assert "guárdalo como .docx" in res["viejo.doc"]["motivo"] and res["viejo.doc"]["estado"] == "fallo"
+    assert "no soportado" in res["notas.txt"]["motivo"] and res["roto.pdf"]["estado"] == "fallo"
+    assert int(res["tesis.pdf"]["palabras"]) > 0 and int(res["trabajo.docx"]["palabras"]) > 0
+    if hay_ocr:
+        assert res["fotos.pdf"]["metodo"] == "ocr_feanor" and res["fotos.pdf"]["estado"] == "convertida"
+        md = (salida / "mezcla" / "fotos" / "fotos.md").read_text(encoding="utf-8")
+        assert "Texto extraído de: fotos.pdf" in md and "OCR de Feanor sin aplanar" in md
+
+
+def test_comparacion_ocr_con_paginas_del_cuerpo(tmp_path):
+    """La comparación toma páginas del cuerpo (no la de referencias), las lee
+    como imagen y deja su texto nativo y el del OCR, con la tasa de error."""
+    import csv
+    if not _hay_ocr():
+        pytest.skip("sin OCRmyPDF o Tesseract")
+    from aplanar_libro.cli import main
+    carpeta = tmp_path / "t"
+    carpeta.mkdir()
+    doc = fitz.open()
+    for titulo, tema in (("CAPITULO UNO", "autoeficacia"), ("CAPITULO DOS", "motivacion"),
+                         ("CAPITULO TRES", "resiliencia"), ("REFERENCIAS", "ansiedad")):
+        frase = f"El estudio analiza la {tema} y el rendimiento academico de los estudiantes. "
+        p = doc.new_page(width=600, height=800)
+        p.insert_textbox(fitz.Rect(50, 50, 550, 760), titulo + "\n" + frase * 16, fontsize=11)
+    doc.save(carpeta / "tesis.pdf")
+    main([str(carpeta), "--salida", str(tmp_path / "s"), "--comparar-ocr", "1", "--paginas-comparacion", "2"])
+    base = tmp_path / "s" / "t" / "comparacion_ocr"
+    filas = list(csv.DictReader(open(base / "_comparacion.csv", encoding="utf-8-sig")))
+    assert len(filas) == 2 and all(f["pagina"] in ("1", "2", "3") for f in filas)   # nunca la de referencias
+    assert all(float(f["wer"]) < 0.2 for f in filas)
+    assert (base / "tesis" / f"p{int(filas[0]['pagina']):04d}_ocr.txt").exists()
+    import json
+    comandos = json.loads((base / "_comparacion.json").read_text(encoding="utf-8"))["comandos_ocr"]
+    assert list(comandos) == ["tesis.pdf"] and "--force-ocr" in comandos["tesis.pdf"]   # un comando por PDF
+
+
+def _hay_ocr():
+    """OCRmyPDF y Tesseract, buscados igual que los busca Feanor (no solo en el
+    PATH: en Windows OCRmyPDF suele estar en la carpeta de `uv tool` y Tesseract
+    en Program Files). Con shutil.which, en la PC del autor estas pruebas se
+    saltaban sin probar nada."""
+    from aplanar_libro.entorno import ruta_tesseract
+    from aplanar_libro.leer import encontrar_ocrmypdf
+    try:
+        encontrar_ocrmypdf()
+    except FileNotFoundError:
+        return False
+    return ruta_tesseract() is not None
+
+
+def test_auto_lee_la_pagina_escaneada_aunque_traiga_sello(tmp_path):
+    """Una página escaneada con un sello corto de texto se lee entera (con
+    --skip-text se saltaba). Una página de imagen sin nada que leer no se rotula
+    «OCR de Feanor»: queda «no se leyó» y va a las alertas."""
+    import csv
+    import json
+    if not _hay_ocr():
+        pytest.skip("sin OCRmyPDF o Tesseract")
+    from aplanar_libro.cli import main
+    carpeta = tmp_path / "c"
+    carpeta.mkdir()
+    _pdf_de_prueba(carpeta / "acta.pdf", ["escaneada_con_sello", "imagen_en_blanco"])
+    main([str(carpeta), "--auto", "--salida", str(tmp_path / "s")])
+    base = tmp_path / "s" / "c"
+    r = json.loads((base / "acta" / "acta.json").read_text(encoding="utf-8"))
+    assert [p["tipo"] for p in r["paginas_pdf"]] == ["escaneada", "escaneada"]
+    assert r["ocr"]["paginas_leidas"] == [1] and r["ocr"]["paginas_no_leidas"] == [2]
+    assert "--force-ocr" in r["ocr"]["comando"] and r["ocr"]["comando"][-2:] == ["<entrada>", "<salida>"]
+    assert "jurado" in r["paginas_md"][0]["texto_crudo"].lower()               # el contenido de la foto, no solo el sello
+    md = (base / "acta" / "acta.md").read_text(encoding="utf-8")
+    assert "1: OCR de Feanor sin aplanar" in md and "2: solo imagen, sin texto: no se leyó" in md
+    fila = next(csv.DictReader(open(base / "_lote.csv", encoding="utf-8-sig")))
+    assert "que el OCR no pudo leer: [2]" in fila["revisar"]
+
+
+def test_auto_capa_ocr_previa_mas_paginas_escaneadas(tmp_path):
+    """PDF con OCR previo y una página escaneada: la capa previa se conserva tal
+    cual y solo la página escaneada pasa por el OCR de Feanor."""
+    import json
+    if not _hay_ocr():
+        pytest.skip("sin OCRmyPDF o Tesseract")
+    from aplanar_libro.cli import main
+    carpeta = tmp_path / "c"
+    carpeta.mkdir()
+    _pdf_de_prueba(carpeta / "mixto.pdf", ["ocr_previo", "ocr_previo", "ocr_previo", "escaneada"])
+    main([str(carpeta), "--auto", "--salida", str(tmp_path / "s")])
+    r = json.loads((tmp_path / "s" / "c" / "mixto" / "mixto.json").read_text(encoding="utf-8"))
+    assert r["lote"]["metodo"] == "capa_ocr_previa+ocr_feanor"
+    assert r["ocr"]["paginas_pedidas"] == [4] and r["ocr"]["paginas_leidas"] == [4]
+    previo = "Texto de prueba con varias palabras para la pagina"
+    assert all(r["paginas_md"][i]["texto_crudo"].strip() == previo for i in range(3))   # la capa previa, intacta
+
+
+def test_ligaduras_y_guion_no_cuentan_como_error_ni_parten_palabras():
+    """La comparación normaliza igual los dos textos (NFKC y guion de fin de
+    línea), y el cuerpo para el léxico pasa las ligaduras a letras."""
+    from aplanar_libro.comparacion import metricas, normalizar
+    from aplanar_libro.cuerpo import cuerpo
+    nativo = "La con\ufb01anza y la re\ufb02exión son anterior-\nmente importantes."
+    ocr = "La confianza y la reflexión son anteriormente\nimportantes."
+    assert metricas(nativo, ocr)["errores"] == 0
+    assert normalizar(nativo).split()[:2] == ["la", "confianza"]
+    texto, _ = cuerpo([nativo], None)
+    assert "confianza" in texto and "reflexión" in texto and "\ufb01" not in texto
+
+
+def test_auto_pagina_nativa_alterada_por_el_ocr_se_toma_del_original(tmp_path, monkeypatch):
+    """OCRmyPDF reescribe el PDF entero. Si una página NO pedida sale con otro
+    texto en el intermedio, el .md usa el texto del original, la página se
+    lista en ocr.paginas_alteradas y va a las alertas. Se simula OCRmyPDF para
+    poder forzar la alteración."""
+    import csv
+    import json
+    import aplanar_libro.leer as leer
+    from aplanar_libro.cli import main
+
+    def ocr_falso(entrada, salida, paginas, idioma="spa"):
+        doc = fitz.open(entrada)
+        for i in paginas:
+            doc[i - 1].insert_text((50, 200), "LEIDO POR OCR")       # la página pedida «se lee»
+        doc[1].insert_text((50, 300), "ALTERADO AL REESCRIBIR")      # la página 2, nativa, cambia
+        doc.save(salida)
+        return ["ocrmypdf", "-l", idioma, "--force-ocr", "--pages", ",".join(map(str, paginas)), str(entrada), str(salida)]
+
+    monkeypatch.setattr(leer, "ocr_paginas", ocr_falso)
+    carpeta = tmp_path / "c"
+    carpeta.mkdir()
+    _pdf_de_prueba(carpeta / "mixto.pdf", ["escaneada", "digital", "digital"])
+    main([str(carpeta), "--auto", "--salida", str(tmp_path / "s")])
+    base = tmp_path / "s" / "c"
+    r = json.loads((base / "mixto" / "mixto.json").read_text(encoding="utf-8"))
+    assert r["lote"]["metodo"] == "texto_nativo+ocr_feanor"
+    assert r["ocr"]["paginas_alteradas"] == [2] and r["ocr"]["paginas_leidas"] == [1]
+    assert "ALTERADO" not in r["paginas_md"][1]["texto_crudo"]                     # se usó el original
+    assert "LEIDO POR OCR" in r["paginas_md"][0]["texto_crudo"]
+    md = (base / "mixto" / "mixto.md").read_text(encoding="utf-8")
+    assert "ALTERADO" not in md
+    fila = next(csv.DictReader(open(base / "_lote.csv", encoding="utf-8-sig")))
+    assert "cambiaron al reescribir el PDF" in fila["revisar"]

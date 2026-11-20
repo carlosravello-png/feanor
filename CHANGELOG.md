@@ -5,6 +5,109 @@ Las mediciones del banco y los umbrales de las versiones 0.2.0 a 0.4.5 están
 en [CALIBRACION.md](CALIBRACION.md). Las versiones anteriores a 0.4.6 están en
 el historial de git, cada una con su etiqueta (`v0.1.0` a `v0.4.5`).
 
+## 0.5.4 · Lote automático con OCR sin aplanar y comparación forzada de OCR (19/11/2026)
+
+**Qué cambió**
+- Lote automático, opción nueva `--auto` (es la que usa `FEANOR.bat` con una
+  carpeta): todos los archivos de la carpeta, cada uno con su método.
+  - PDF digital: texto nativo. PDF con OCR previo: esa capa, marcada.
+  - PDF mixto: texto nativo donde lo hay y OCR de Feanor **sin aplanar** en
+    las páginas que son solo imagen (la hoja de aprobación escaneada queda
+    leída). PDF escaneado: OCR sin aplanar. Los dos con OCRmyPDF
+    `--force-ocr --pages <solo las páginas imagen>` y la segmentación
+    automática de Tesseract (ruta nueva `_ruta_ocr_directo`, solo en el lote;
+    función `leer.ocr_paginas`). Con `--skip-text`, una hoja escaneada con un
+    sello de texto encima se saltaba y quedaba rotulada como leída.
+  - Después del OCR se comprueba cada página pedida: si su texto no cambió, se
+    rotula «no se leyó» y va a las alertas. Y al revés: OCRmyPDF reescribe el
+    PDF entero (por defecto, `--output-type auto`, intenta PDF/A y, si no
+    valida, lo convierte con Ghostscript), así que toda página NO pedida debe
+    tener en el intermedio el mismo texto que en el original; si difiere, su
+    texto se toma del original, se lista en `ocr.paginas_alteradas` y va a las
+    alertas. El `.json` guarda el comando exacto (`ocr.comando`) y las páginas
+    pedidas, leídas, no leídas y alteradas.
+  - Word y PowerPoint: su ruta de siempre.
+  - `.doc`, `.ppt`, otro tipo o archivo dañado: a «fallos» con el motivo.
+  - Las páginas leídas así llevan en el `.md` el origen «OCR de Feanor sin
+    aplanar» y un aviso propio en el encabezado.
+- El resumen del lote cuenta archivos por tipo y por método, y `_lote.csv`
+  suma las columnas `tipo`, `metodo` y `palabras`.
+- Comparación forzada de OCR, opciones nuevas `--comparar-ocr N`,
+  `--paginas-comparacion` (10) y `--semilla` (20261119), en el módulo nuevo
+  `comparacion.py`: N PDF digitales al azar y, de cada uno, páginas del
+  cuerpo con 150 palabras o más (nunca portada, índice, referencias ni
+  anexos), convertidas en imagen a 300 ppp en grises, leídas con el mismo OCR
+  sin aplanar (comando exacto de cada PDF en `_comparacion.json`, porque
+  `--rotate-pages` puede usarse en uno y no en otro) y comparadas con su
+  texto nativo. Los dos textos se normalizan igual antes de comparar: NFKC
+  (ligaduras «ﬁ», «ﬂ» → letras), guion de fin de línea unido, minúsculas.
+  Tasa de error por palabra (distancia de edición entre listas de palabras,
+  dividida por las nativas) y similitud de caracteres. Un PDF sin páginas de
+  cuerpo se reemplaza por el siguiente del orden al azar; el resumen dice
+  cuántos se pidieron y cuántos se midieron.
+- Cuerpo para el léxico (`--cuerpo`): normalizado con NFKC, para que
+  «conﬁanza» con ligadura y «confianza» cuenten como la misma palabra (el
+  texto nativo de PyMuPDF conserva las ligaduras). El `.md` no se normaliza.
+- Corrección de la 0.5.3: con menos de 3 páginas con texto, el filtro de
+  encabezados repetidos borraba todo el cuerpo (en una sola página cada línea
+  «se repite en más de la mitad»). Ahora no quita nada por debajo de 3
+  páginas, y una línea debe repetirse al menos 2 veces.
+- `FEANOR Y SU NAVAJA.bat` agrega la comparación: 20 tesis, 10 páginas cada
+  una, semilla 20261119.
+
+**Qué quedó igual a propósito**
+- Un archivo suelto se convierte como antes: el OCR sin aplanar solo existe
+  en el lote. Sin `--auto`, el lote decide lo mismo que en la 0.5.3 (solo PDF,
+  sin OCR, las escaneadas apartadas), pero no es idéntico: `_lote.csv` suma
+  las columnas `tipo`, `metodo` y `palabras`, el motivo de una escaneada dice
+  «en el lote no se hace OCR (con --auto, sí)», y el cuerpo cambia en
+  documentos de menos de 3 páginas y en los que traen ligaduras. `--auto` no se combina con `--solo-digitales` ni con
+  `--metadatos`, que son para un corpus muestreado.
+
+**Con qué se probó**
+- Pruebas automáticas: 40, siete nuevas (la séptima simula un OCRmyPDF que
+  altera una página nativa: el `.md` usa el texto del original, la página va a
+  `ocr.paginas_alteradas` y a las alertas); de las de antes no se cambió ni quitó
+  ninguna línea (a la función que arma los PDF de prueba se le agregaron dos
+  tipos de página). Las nuevas, además de las tres de abajo: una página
+  escaneada con un sello corto se lee entera y una de imagen en blanco queda
+  «no se leyó» y en las alertas; un PDF con OCR previo y una página escaneada
+  conserva la capa previa intacta y solo lee la escaneada; las ligaduras y el
+  guion de fin de línea no cuentan como error ni parten palabras en el cuerpo. Una
+  prueba la tasa de error con casos a mano. Otra, el lote automático con una
+  tesis digital, un Word, un PowerPoint, un `.doc`, un `.txt`, un PDF roto y,
+  si hay OCR instalado, un PDF escaneado. La tercera, la comparación de punta
+  a punta: dos páginas del cuerpo, nunca la de referencias, con su texto
+  nativo y el del OCR.
+- Lote automático de punta a punta con una carpeta sintética de 8 archivos:
+  la tesis digital por texto nativo, el acta escaneada leída entera, la hoja
+  de aprobación del PDF mixto leída y el resto con su texto nativo, Word y
+  PowerPoint por su ruta, y `.doc`, `.txt` y el PDF roto en fallos con su
+  motivo.
+
+**Límites declarados**
+- Una página escaneada con un sello de 3 palabras o más se clasifica
+  «digital» (los umbrales no cambiaron) y no pasa por OCR: queda marcada para
+  revisar («texto visible sobre una foto de página completa»), pero su
+  contenido no se lee.
+- La normalización NFKC del cuerpo cambia también otros caracteres de
+  compatibilidad (superíndices, fracciones, «…»).
+- En las corridas de prueba, OCRmyPDF no alteró ninguna página nativa, pero
+  avisó que convertía con Ghostscript: no se sabe si con tesis reales altera
+  alguna. La comprobación lo detecta y lo corrige; no se cambió el
+  `--output-type`.
+- El OCR sin aplanar no está medido todavía con tesis reales: para eso es la
+  comparación forzada. Las páginas con tablas o fórmulas pueden dar una tasa
+  alta por el orden de lectura, no por mal OCR.
+- La comparación mide el OCR sobre páginas digitales convertidas en imagen,
+  que son más limpias que un escaneo real (sin manchas, inclinación ni
+  sombras): es una cota optimista del error en escaneos.
+- Una tesis en la que todas las páginas son casi iguales (por ejemplo, un
+  acta repetida) puede quedar sin cuerpo: sus líneas cuentan como
+  encabezados repetidos.
+- El `.md` de un PDF leído por OCR sin aplanar viene de un PDF intermedio
+  (`<nombre>_ocr.pdf`, en su carpeta), que ocupa espacio.
+
 ## 0.5.3 · Modo lote y sección de referencias (19/11/2026)
 
 **Qué cambió**

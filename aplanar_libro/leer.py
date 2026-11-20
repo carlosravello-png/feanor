@@ -55,3 +55,25 @@ def leer_pdf(entrada: Path, salida: Path, idioma: str = "spa", modo: str = "libr
         print("  OCRmyPDF falló con --rotate-pages (¿falta osd.traineddata?). "
               "Se lee de nuevo sin enderezar páginas giradas.")
         subprocess.run(cmd + [str(entrada), str(salida)], check=True)
+
+
+def ocr_paginas(entrada: Path, salida: Path, paginas: list[int], idioma: str = "spa") -> list[str]:
+    """OCR sin aplanar de las páginas indicadas, y solo de ellas (modo lote).
+
+    --force-ocr: cada página indicada se convierte en imagen y se lee entera,
+    aunque traiga algo de texto encima (un sello del repositorio): con
+    --skip-text esa página se saltaba y no se leía. Las demás páginas pasan
+    tal cual. Segmentación automática de Tesseract (sin --tesseract-pagesegmode).
+
+    Devuelve el comando EXACTO que terminó bien, para guardarlo en el registro.
+    """
+    lista = ",".join(str(p) for p in sorted(paginas))
+    base = [encontrar_ocrmypdf(), "-l", idioma, "--force-ocr", "--pages", lista]
+    con_giro = base + ["--rotate-pages", str(entrada), str(salida)]
+    print("  " + " ".join(con_giro))
+    if subprocess.run(con_giro).returncode == 0:
+        return con_giro
+    print("  OCRmyPDF falló con --rotate-pages (¿falta osd.traineddata?). Se lee sin enderezar páginas giradas.")
+    sin_giro = base + [str(entrada), str(salida)]
+    subprocess.run(sin_giro, check=True)
+    return sin_giro

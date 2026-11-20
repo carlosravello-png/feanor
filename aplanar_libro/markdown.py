@@ -39,12 +39,16 @@ AVISO_DIGITAL = """<!-- AVISO: texto copiado tal cual del PDF, sin OCR de Feanor
      con una IA. Si abajo se indica que alguna página trae «OCR previo» (texto que puso otro programa
      sobre una foto), ese texto puede tener errores: dosis, cifras, nombres de fármacos y citas se
      verifican en la página original. -->"""
+AVISO_OCR_DIRECTO = """<!-- AVISO: el texto de las páginas que ya lo traían se copió tal cual del PDF; las páginas que
+     eran solo imagen se leyeron con el OCR de Feanor, sin aplanar, y pueden tener errores. El origen de cada
+     página va abajo. Dosis, cifras, nombres de fármacos y citas se verifican en la página original. -->"""
 # Qué decir de cada tipo de página (ver tipo_pdf.py), en el encabezado y en la página.
 ORIGEN = {
     "digital": "texto digital, copiado tal cual",
     "ocr_previo": "OCR previo: foto con texto puesto por otro programa antes de Feanor; puede tener errores",
     "dudosa": "dudosa: mezcla texto digital y texto de OCR previo; verificar en la página original",
     "escaneada": "solo imagen, sin texto: no se leyó; ver la página original",
+    "ocr_feanor": "OCR de Feanor sin aplanar (la página era solo imagen); puede tener errores",
     "vacia": "sin texto ni imágenes",
 }
 UMBRAL_INDICE = 0.20     # fracción de líneas que son solo un número
@@ -216,7 +220,8 @@ def deducir_folios(textos: list[str], indices: list[int]) -> dict[int, tuple[int
 
 
 def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = None,
-                   limpieza: bool = True, tipos: list[str] | None = None) -> dict:
+                   limpieza: bool = True, tipos: list[str] | None = None, nombre: str | None = None,
+                   reemplazos: dict[int, str] | None = None) -> dict:
     """Escribe el texto de `entrada` en `salida` (.md). Devuelve un resumen.
 
     `tipos` (ruta digital): el tipo de cada página según tipo_pdf.clasificar. El
@@ -234,6 +239,8 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
 
     doc = fitz.open(entrada)
     crudos = [pagina.get_text("text") for pagina in doc]
+    for i, texto in (reemplazos or {}).items():          # texto de otro PDF para esa página (ver cli._ruta_ocr_directo)
+        crudos[i - 1] = texto
     textos = [t.strip() for t in crudos]
     detalle: list[dict] = []
     documento = compuestos_del_documento("\n".join(textos))
@@ -241,7 +248,8 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
         from .tipo_pdf import por_tipo, rangos
         grupos = por_tipo(tipos)
         mayoritario = max(grupos, key=lambda t: len(grupos[t]))
-        partes = [f"<!-- Texto extraído de: {Path(entrada).name} -->", AVISO_DIGITAL,
+        partes = [f"<!-- Texto extraído de: {nombre or Path(entrada).name} -->",
+                  AVISO_OCR_DIRECTO if "ocr_feanor" in grupos else AVISO_DIGITAL,
                   "<!-- Origen del texto, por páginas del visor: -->"]
         partes += [f"<!--   {rangos(n)}: {ORIGEN[t]} -->" for t, n in grupos.items()]
         partes.append("")

@@ -11,13 +11,21 @@ Se arma solo en el modo lote con --cuerpo, en un archivo aparte
   signos), aparece en el margen de más de la mitad de las páginas con texto. Así
   «Universidad …» o el título de la tesis arriba de cada página no se cuentan
   150 veces. Solo se quita en el margen: la misma frase dentro del texto queda.
+  Con menos de 3 páginas con texto no se quita nada (en una sola página, cada
+  línea «se repetiría en más de la mitad»).
 
-Al texto que queda se le aplica la limpieza de siempre (ver markdown.limpiar).
+Al texto que queda se le aplica la limpieza de siempre (ver markdown.limpiar),
+después de normalizarlo con NFKC: las ligaduras tipográficas («ﬁ», «ﬂ», un solo
+carácter en muchos PDF) pasan a sus letras, para que «conﬁanza» y «confianza»
+cuenten como la misma palabra. NFKC también cambia otros caracteres de
+compatibilidad (superíndices, fracciones, «…»): para contar palabras da igual.
+El .md de siempre no se normaliza.
 Lo que se quitó se cuenta y va al resumen.
 """
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from .markdown import compuestos_del_documento, es_indice, limpiar
 from .referencias import parece_indice
@@ -32,8 +40,13 @@ def _normal(linea: str) -> str:
     return " ".join(t.split())
 
 
+PAGINAS_MINIMAS_MARGEN = 3   # con menos páginas con texto, nada cuenta como encabezado repetido
+
+
 def margenes_repetidos(textos: list[str]) -> set[str]:
     con_texto = [t for t in textos if t.strip()]
+    if len(con_texto) < PAGINAS_MINIMAS_MARGEN:
+        return set()
     cuenta: dict[str, int] = {}
     for t in con_texto:
         lineas = [l for l in t.splitlines() if l.strip()]
@@ -41,11 +54,12 @@ def margenes_repetidos(textos: list[str]) -> set[str]:
         for n in vistas:
             if len(n) >= 3:
                 cuenta[n] = cuenta.get(n, 0) + 1
-    return {n for n, c in cuenta.items() if c > REPETIDA * len(con_texto)}
+    return {n for n, c in cuenta.items() if c >= 2 and c > REPETIDA * len(con_texto)}
 
 
 def cuerpo(textos: list[str], ref: dict | None) -> tuple[str, dict]:
     """`textos`: el texto crudo de cada página. Devuelve el cuerpo y su resumen."""
+    textos = [unicodedata.normalize("NFKC", t) for t in textos]     # antes de todo: ligaduras → letras
     hasta = ref["pagina"] if ref else len(textos)
     repetidas = margenes_repetidos(textos)
     paginas, quitadas, indices = [], 0, 0
@@ -73,6 +87,8 @@ def cuerpo(textos: list[str], ref: dict | None) -> tuple[str, dict]:
                "palabras_por_pagina": round(palabras / len(limpias), 1) if limpias else 0.0,
                "paginas_indice_fuera": indices, "lineas_de_margen_quitadas": quitadas,
                "margenes_repetidos": sorted(repetidas), "hasta_pagina": hasta,
+               "paginas_lista": [i for i, _ in limpias],
+               "palabras_por_pagina_lista": [len(t.split()) for _, t in limpias],
                "corta_en_referencias": bool(ref)}
     texto = "\n\n".join(f"<!-- página {i} del visor -->\n\n{t}" for i, t in limpias)
     return texto, resumen

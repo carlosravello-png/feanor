@@ -186,6 +186,52 @@ def _ruta_digital(pdf: Path, md: Path, registro: dict, inicio: float,
     return True
 
 
+def _ruta_ocr_directo(pdf: Path, md: Path, registro: dict, inicio: float, paginas_pdf: list[dict],
+                      carpeta: Path, idioma: str) -> None:
+    """Solo modo lote: OCR SIN aplanar de las páginas que son solo imagen (con
+    --force-ocr, para que un sello de texto encima no haga saltar la página), y
+    copia tal cual de las que ya traen texto. El aplanado está hecho para fotos
+    de libros curvos y empeora los documentos planos.
+
+    Después se comprueba página por página: una página que debía leerse y cuyo
+    texto no cambió no se rotula «OCR de Feanor» sino «no se leyó», y va a las
+    alertas.
+
+    Y al revés: OCRmyPDF reescribe el archivo entero (por defecto intenta
+    PDF/A y, si no valida, lo convierte con Ghostscript). Toda página NO pedida
+    debe tener en el intermedio el mismo texto que en el original; si alguna
+    difiere, su texto se toma del original, se lista en ocr.paginas_alteradas
+    y va a las alertas."""
+    import pymupdf as fitz
+    from .leer import ocr_paginas
+    from .tipo_pdf import UMBRALES, por_tipo, rangos
+    pedidas = [p["pagina"] for p in paginas_pdf if p["tipo"] == "escaneada"]
+    ocr = carpeta / f"{pdf.stem}_ocr.pdf"
+    comando = ocr_paginas(pdf, ocr, pedidas, idioma)
+    with fitz.open(pdf) as antes, fitz.open(ocr) as despues:
+        if len(antes) != len(despues):
+            raise RuntimeError(f"OCRmyPDF devolvió {len(despues)} páginas para un PDF de {len(antes)}")
+        no_leidas = [i for i in pedidas
+                     if despues[i - 1].get_text("text").split() == antes[i - 1].get_text("text").split()]
+        originales = {i: antes[i - 1].get_text("text") for i in range(1, len(antes) + 1) if i not in pedidas}
+        alteradas = [i for i, t in originales.items() if despues[i - 1].get_text("text") != t]
+    tipos = [("ocr_feanor" if p["pagina"] not in no_leidas else "escaneada") if p["tipo"] == "escaneada"
+             else p["tipo"] for p in paginas_pdf]
+    resumen = pdf_a_markdown(ocr, md, None, tipos=tipos, nombre=pdf.name,
+                             reemplazos={i: originales[i] for i in alteradas})
+    grupos = por_tipo(tipos)
+    registro.update({"umbrales_tipo": UMBRALES, "paginas_pdf": paginas_pdf,
+                     "tipos_de_pagina": {t: rangos(n) for t, n in grupos.items()},
+                     "ruta": "ocr_directo",
+                     "ocr": {"comando": [Path(comando[0]).name] + comando[1:-2] + ["<entrada>", "<salida>"],
+                             "paginas_pedidas": pedidas, "paginas_leidas": grupos.get("ocr_feanor", []),
+                             "paginas_no_leidas": no_leidas, "paginas_alteradas": alteradas},
+                     "segundos": {"total": round(time.perf_counter() - inicio, 1)},
+                     "resumen": {k: resumen[k] for k in ("paginas", "sin_texto", "indices", "a_revisar")},
+                     "paginas_md": resumen["detalle"]})
+    _escribir_referencias(md, resumen, registro)
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="aplanar-libro",
                                 description="Aplana páginas curvas, pasa OCR en español y genera Markdown.")
@@ -212,6 +258,17 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--cuerpo", action="store_true",
                    help="modo lote: escribir además <nombre>_cuerpo.md para análisis léxico (sin referencias, anexos, "
                         "índices ni encabezados o pies repetidos)")
+    p.add_argument("--auto", action="store_true",
+                   help="modo lote automático: todos los archivos de la carpeta, cada uno con su método (PDF digital, "
+                        "con OCR previo, mixto o escaneado, Word, PowerPoint), con OCR sin aplanar para las páginas "
+                        "que son solo imagen; los de otro tipo van a fallos")
+    p.add_argument("--comparar-ocr", type=int, default=0, metavar="N",
+                   help="modo lote: pasar por OCR, como imagen, páginas del cuerpo de N PDF digitales al azar "
+                        "y compararlas con su texto nativo (mide el error del OCR sin aplanar)")
+    p.add_argument("--paginas-comparacion", type=int, default=10,
+                   help="páginas del cuerpo por PDF en --comparar-ocr (por defecto 10)")
+    p.add_argument("--semilla", type=int, default=20261119,
+                   help="semilla del azar de --comparar-ocr (por defecto 20261119)")
     p.add_argument("--destino", type=Path, default=None,
                    help="modo lote: carpeta exacta donde va todo (sin subcarpeta con el nombre de la entrada)")
     p.add_argument("--nucleos", type=int, default=None,
@@ -221,7 +278,8 @@ def main(argv: list[str] | None = None) -> None:
     if a.pdf.is_dir():
         from .lote import procesar_carpeta
         procesar_carpeta(a.pdf, a.salida, a.idioma, a.solo_digitales, a.metadatos, a.anios, a.destino,
-                         a.cuerpo)
+                         a.cuerpo, auto=a.auto, comparar=a.comparar_ocr,
+                         paginas_comparacion=a.paginas_comparacion, semilla=a.semilla)
         return
     extension = a.pdf.suffix.lower()
     if extension == ".ppt":
