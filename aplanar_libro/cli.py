@@ -4,6 +4,11 @@
     aplanar-libro libro.pdf --solo aplanar   # solo el paso 1
     aplanar-libro libro.pdf --paginas 2,4,6  # aplanar solo esas páginas
     aplanar-libro clase.pptx                 # PowerPoint: copia su texto a Markdown
+
+Sin --solo ni --paginas, Feanor mira antes de qué tipo es cada página: si el
+PDF ya trae su texto (digital, o con un OCR previo), lo copia directo a
+Markdown sin aplanar ni leer (ruta digital). --releer obliga a leerlo con el
+OCR de Feanor aunque ya traiga texto.
 """
 from __future__ import annotations
 
@@ -50,6 +55,42 @@ def _presentacion(entrada: Path, idioma: str) -> None:
     print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")
 
 
+def _ruta_digital(pdf: Path, md: Path, tiempos_json: Path, inicio: float) -> bool:
+    """Si el PDF ya trae su texto, lo pasa a Markdown sin aplanar ni leer.
+
+    Devuelve False (y no hace nada) si la mayoría de las páginas con algo son
+    fotos sin texto: ese PDF va por la ruta completa.
+    """
+    from .tipo_pdf import clasificar, por_tipo, rangos
+    from .markdown import ORIGEN
+    tipos = clasificar(pdf)
+    grupos = por_tipo(tipos)
+    con_texto = sum(len(grupos.get(t, [])) for t in ("digital", "ocr_previo", "dudosa"))
+    escaneadas = len(grupos.get("escaneada", []))
+    print(f"aplanar-libro {__version__} · tipo de cada página:")
+    for t, n in grupos.items():
+        print(f"  {rangos(n)}: {ORIGEN[t]}")
+    if escaneadas > con_texto:
+        print("  → la mayoría son fotos sin texto: ruta completa (aplanar, leer y Markdown)")
+        return False
+    print("  → el PDF ya trae su texto: ruta digital, sin aplanar ni OCR")
+    if "ocr_previo" in grupos or "dudosa" in grupos:
+        print("  OJO: hay páginas con OCR previo de otro programa; su texto puede tener errores. "
+              "Para leerlas con el OCR de Feanor: --releer")
+    print("Markdown")
+    resumen = pdf_a_markdown(pdf, md, None, tipos=tipos)
+    total = round(time.perf_counter() - inicio, 1)
+    print(f"  {resumen['paginas']} páginas, {resumen['sin_texto']} sin texto, "
+          f"revisar a mano: {resumen['a_revisar'] or 'ninguna'}")
+    print(f"  resultado: {md.name}")
+    registro = {"fecha": datetime.now().isoformat(timespec="seconds"), "archivo": pdf.name,
+                "pasos": "ruta digital", "segundos": {"total": total},
+                "tipos_de_pagina": {t: rangos(n) for t, n in grupos.items()}}
+    tiempos_json.write_text(json.dumps(registro, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Listo. Tiempo total: {_duracion(total)}")
+    return True
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="aplanar-libro",
                                 description="Aplana páginas curvas, pasa OCR en español y genera Markdown.")
@@ -61,6 +102,8 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--modo", default="libro", choices=["libro", "auto"],
                    help="libro = un solo bloque de texto; auto = deja que Tesseract busque columnas")
     p.add_argument("--dpi", type=int, default=300)
+    p.add_argument("--releer", action="store_true",
+                   help="leer con el OCR de Feanor aunque el PDF ya traiga texto (por ejemplo, un OCR previo malo)")
     p.add_argument("--nucleos", type=int, default=None,
                    help="páginas que se aplanan a la vez (por defecto, según los núcleos físicos y la memoria libre, máx. 8)")
     a = p.parse_args(argv)
@@ -91,6 +134,10 @@ def main(argv: list[str] | None = None) -> None:
         n = len(fitz.open(a.pdf))
         paginas = [i for i in range(1, n + 1) if (i % 2 == 0) == (paginas == "pares")]
 
+    if not a.solo and not a.paginas and not a.releer:
+        if _ruta_digital(a.pdf, md, tiempos_json, inicio_total):
+            return
+
     donde = entorno()
     print(f"aplanar-libro {__version__} · optimizador: {donde['optimizador']} · "
           f"JAX {donde['jax'] or 'no instalado'} · numpy {donde['numpy']} · scipy {donde['scipy']}")
@@ -109,7 +156,7 @@ def main(argv: list[str] | None = None) -> None:
         entrada = plano if plano.exists() else a.pdf
         print(f"  entrada: {entrada.name}")
         t = time.perf_counter()
-        leer_pdf(entrada, ocr, idioma=a.idioma, modo=a.modo)
+        leer_pdf(entrada, ocr, idioma=a.idioma, modo=a.modo, forzar=a.releer)
         medir("leer", t)
     if a.solo in (None, "markdown"):
         print("Paso 3: Markdown")

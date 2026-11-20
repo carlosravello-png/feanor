@@ -365,3 +365,54 @@ def test_forma_de_palabra():
         assert not _parece_palabra(w), w
     for w in ["CONFIDENCIALIDAD", "Beneficencia).", "información", "(Principio", "Art."]:
         assert _parece_palabra(w), w
+
+
+def _pdf_de_prueba(ruta, paginas):
+    """PDF sintético con páginas de cada tipo: digital, ocr_previo, escaneada,
+    tapado (texto visible dibujado debajo de una foto) y vacia."""
+    foto = np.full((800, 600, 3), 200, np.uint8)
+    cv2.putText(foto, "foto", (100, 400), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 5)
+    ok, png = cv2.imencode(".png", foto)
+    doc = fitz.open()
+    texto = "Texto de prueba con varias palabras para la pagina"
+    for tipo in paginas:
+        p = doc.new_page(width=600, height=800)
+        if tipo == "digital":
+            p.insert_text((50, 100), texto)
+        elif tipo == "ocr_previo":
+            p.insert_image(p.rect, stream=png.tobytes())
+            p.insert_text((50, 100), texto, render_mode=3)          # invisible, como un OCR
+        elif tipo == "tapado":
+            p.insert_text((50, 100), texto)                         # visible, pero queda debajo
+            p.insert_image(p.rect, stream=png.tobytes())
+        elif tipo == "escaneada":
+            p.insert_image(p.rect, stream=png.tobytes())
+    doc.save(ruta)
+
+
+def test_tipo_de_cada_pagina(tmp_path):
+    from aplanar_libro.tipo_pdf import clasificar, rangos
+    pdf = tmp_path / "mezcla.pdf"
+    _pdf_de_prueba(pdf, ["digital", "ocr_previo", "tapado", "escaneada", "vacia"])
+    assert clasificar(pdf) == ["digital", "ocr_previo", "ocr_previo", "escaneada", "vacia"]
+    assert rangos([1, 2, 3, 7, 9, 10]) == "1–3, 7, 9–10"
+
+
+def test_ruta_digital_de_punta_a_punta(tmp_path):
+    """Un PDF que ya trae texto pasa directo a Markdown, sin aplanar ni OCR, y el
+    .md dice de dónde sale el texto; uno de fotos sin texto no toma esa ruta."""
+    from aplanar_libro.cli import _ruta_digital
+    pdf = tmp_path / "libro.pdf"
+    _pdf_de_prueba(pdf, ["digital"] * 4 + ["ocr_previo"])
+    md = tmp_path / "libro_ocr.md"
+    assert _ruta_digital(pdf, md, tmp_path / "t.json", 0.0)
+    texto = md.read_text(encoding="utf-8")
+    assert "sin OCR de Feanor" in texto and "Texto extraído por OCR" not in texto
+    assert "1–4: texto digital" in texto and "5: OCR previo" in texto
+    assert "origen del texto de esta página: OCR previo" in texto   # la página distinta va anotada
+    assert not (tmp_path / "libro_plano.pdf").exists()               # no se aplanó nada
+
+    fotos = tmp_path / "fotos.pdf"
+    _pdf_de_prueba(fotos, ["escaneada"] * 3 + ["digital"])
+    assert not _ruta_digital(fotos, tmp_path / "fotos_ocr.md", tmp_path / "f.json", 0.0)
+    assert not (tmp_path / "fotos_ocr.md").exists()

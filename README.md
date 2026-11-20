@@ -64,6 +64,18 @@ python -m pip install git+https://github.com/carlosravello-png/aplanar-libro.git
 aplanar-libro "libro.pdf"
 ```
 
+Antes de nada, Feanor mira de dónde sale el texto de cada página:
+
+| Tipo de página | Qué es | Qué hace Feanor |
+|---|---|---|
+| digital | El texto viene de origen (Word, la editorial) | Lo copia tal cual |
+| OCR previo | Una foto a la que otro programa ya le puso texto | Lo copia y avisa que puede traer errores |
+| dudosa | Mezcla de las dos anteriores | Lo copia y avisa |
+| escaneada | Una foto sin texto | La aplana y la lee |
+| vacía | Ni texto ni imágenes | Nada |
+
+Si la mayoría de las páginas ya traen texto, toma la **ruta digital**: pasa directo a Markdown, en segundos, sin aplanar ni OCR, y el `.md` dice en su encabezado qué páginas son de cada tipo (las que son solo imagen quedan anotadas como no leídas). Si la mayoría son fotos sin texto, toma la ruta completa. Para leer con el OCR de Feanor un PDF que ya trae texto (por ejemplo, un OCR previo malo): `--releer`. Con `--solo` o `--paginas` no se hace esta revisión.
+
 Deja al lado del original:
 
 | Archivo | Para qué |
@@ -80,6 +92,7 @@ Opciones:
 
 ```
 aplanar-libro "libro.pdf" --paginas pares        # aplanar solo las pares (o: impares, o 2,4,6)
+aplanar-libro "libro.pdf" --releer               # leer con el OCR de Feanor aunque ya traiga texto
 aplanar-libro "libro.pdf" --solo aplanar         # un solo paso: aplanar | leer | markdown
 aplanar-libro "articulo.pdf" --modo auto         # documentos a dos columnas
 aplanar-libro "book.pdf" --idioma eng            # otro idioma (uno solo, no mezclar)

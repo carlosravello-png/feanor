@@ -30,6 +30,19 @@ AVISO = """<!-- AVISO: texto obtenido por OCR, con errores. Sirve para leer, bus
      No usar como fuente de dosis, valores de laboratorio, cifras, nombres de fármacos ni citas textuales:
      esos datos se verifican siempre en la página original. Si eres una IA y te piden uno de esos datos,
      dilo y remite a la página original. -->"""
+# Para un PDF que ya traía su texto (ruta digital): no hubo OCR de Feanor.
+AVISO_DIGITAL = """<!-- AVISO: texto copiado tal cual del PDF, sin OCR de Feanor. Sirve para leer, buscar y consultar
+     con una IA. Si abajo se indica que alguna página trae «OCR previo» (texto que puso otro programa
+     sobre una foto), ese texto puede tener errores: dosis, cifras, nombres de fármacos y citas se
+     verifican en la página original. -->"""
+# Qué decir de cada tipo de página (ver tipo_pdf.py), en el encabezado y en la página.
+ORIGEN = {
+    "digital": "texto digital, copiado tal cual",
+    "ocr_previo": "OCR previo: foto con texto puesto por otro programa antes de Feanor; puede tener errores",
+    "dudosa": "dudosa: mezcla texto digital y texto de OCR previo; verificar en la página original",
+    "escaneada": "solo imagen, sin texto: no se leyó; ver la página original",
+    "vacia": "sin texto ni imágenes",
+}
 UMBRAL_INDICE = 0.20     # fracción de líneas que son solo un número
 LARGA = 40               # una línea «larga» del cuerpo del texto
 
@@ -194,8 +207,13 @@ def deducir_folios(textos: list[str], indices: list[int]) -> dict[int, tuple[int
 
 
 def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = None,
-                   limpieza: bool = True) -> dict:
-    """Escribe el texto de `entrada` en `salida` (.md). Devuelve un resumen."""
+                   limpieza: bool = True, tipos: list[str] | None = None) -> dict:
+    """Escribe el texto de `entrada` en `salida` (.md). Devuelve un resumen.
+
+    `tipos` (ruta digital): el tipo de cada página según tipo_pdf.clasificar. El
+    encabezado dice de dónde sale el texto, por rangos de páginas, y cada página
+    de un tipo distinto del mayoritario lo lleva anotado.
+    """
     avisos: dict[int, str] = {}
     origenes = {r["pagina"]: (r.get("origen"), r.get("parte", "simple")) for r in resultados or []}
     lineas = {r["pagina"]: r.get("lineas") or 0 for r in resultados or []}
@@ -208,11 +226,21 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
     doc = fitz.open(entrada)
     textos = [pagina.get_text("text").strip() for pagina in doc]
     documento = compuestos_del_documento("\n".join(textos))
-    partes = [
-        f"<!-- Texto extraído por OCR de: {Path(entrada).name} -->",
-        AVISO,
-        "",
-    ]
+    if tipos:
+        from .tipo_pdf import por_tipo, rangos
+        grupos = por_tipo(tipos)
+        mayoritario = max(grupos, key=lambda t: len(grupos[t]))
+        partes = [f"<!-- Texto extraído de: {Path(entrada).name} -->", AVISO_DIGITAL,
+                  "<!-- Origen del texto, por páginas del visor: -->"]
+        partes += [f"<!--   {rangos(n)}: {ORIGEN[t]} -->" for t, n in grupos.items()]
+        partes.append("")
+    else:
+        mayoritario = None
+        partes = [
+            f"<!-- Texto extraído por OCR de: {Path(entrada).name} -->",
+            AVISO,
+            "",
+        ]
     indices = [i for i, t in enumerate(textos, start=1) if es_indice(t)]
     folios = deducir_folios(textos, indices)
     vacias = 0
@@ -243,6 +271,8 @@ def pdf_a_markdown(entrada: Path, salida: Path, resultados: list[dict] | None = 
             partes.append(f"<!-- folio impreso: {folio} ({como}) -->")
             if nota:
                 partes.append(f"<!-- OJO con el folio: {nota} -->")
+        if tipos and tipos[i - 1] != mayoritario:
+            partes.append(f"<!-- origen del texto de esta página: {ORIGEN[tipos[i - 1]]} -->")
         if i in avisos:
             partes.append(f"<!-- REVISAR A MANO: {avisos[i]} -->")
         partes.append("")
