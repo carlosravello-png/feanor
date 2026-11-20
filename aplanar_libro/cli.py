@@ -4,6 +4,7 @@
     aplanar-libro libro.pdf --solo aplanar   # solo el paso 1
     aplanar-libro libro.pdf --paginas 2,4,6  # aplanar solo esas páginas
     aplanar-libro clase.pptx                 # PowerPoint: copia su texto a Markdown
+    aplanar-libro trabajo.docx               # Word: copia su texto a Markdown
 
 Sin --solo ni --paginas, Feanor mira antes de qué tipo es cada página: si el
 PDF ya trae su texto (digital, o con un OCR previo), lo copia directo a
@@ -55,6 +56,22 @@ def _presentacion(entrada: Path, idioma: str) -> None:
     print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")
 
 
+def _documento(entrada: Path, idioma: str) -> None:
+    """Word: se copia el texto que trae; las imágenes con texto se leen con OCR."""
+    from .documento import docx_a_markdown
+    md = entrada.with_suffix("").with_name(entrada.stem + ".md")
+    print(f"aplanar-libro {__version__} · Word: texto copiado; OCR solo en las imágenes con texto")
+    inicio = time.perf_counter()
+    r = docx_a_markdown(entrada, md, idioma=idioma)
+    if not r["ocr"]:
+        print("  OJO: no se encontró Tesseract; las imágenes no se leyeron, solo se anotan")
+    print(f"  {r['parrafos']} párrafos, {r['titulos']} títulos, {r['tablas']} tablas, "
+          f"{r['notas']} notas, {r['cuadros']} cuadros de texto; imágenes: {r['imagenes']} "
+          f"(con texto leído por OCR: {r['imagenes_leidas']}, con texto escaso marcado [?]: {r['imagenes_escasas']})")
+    print(f"  resultado: {md.name}")
+    print(f"Listo. Tiempo total: {_duracion(time.perf_counter() - inicio)}")
+
+
 def _ruta_digital(pdf: Path, md: Path, tiempos_json: Path, inicio: float) -> bool:
     """Si el PDF ya trae su texto, lo pasa a Markdown sin aplanar ni leer.
 
@@ -94,7 +111,7 @@ def _ruta_digital(pdf: Path, md: Path, tiempos_json: Path, inicio: float) -> boo
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="aplanar-libro",
                                 description="Aplana páginas curvas, pasa OCR en español y genera Markdown.")
-    p.add_argument("pdf", type=Path, help="PDF escaneado, o presentación de PowerPoint (.pptx)")
+    p.add_argument("pdf", type=Path, help="PDF, presentación de PowerPoint (.pptx) o documento de Word (.docx)")
     p.add_argument("--solo", choices=["aplanar", "leer", "markdown"],
                    help="correr un solo paso (por defecto, los tres)")
     p.add_argument("--paginas", help="páginas a aplanar: 2,4,6 | pares | impares (por defecto, todas)")
@@ -114,6 +131,11 @@ def main(argv: list[str] | None = None) -> None:
         return
     if extension == ".ppt":
         raise SystemExit("Es un PowerPoint antiguo (.ppt). Ábrelo en PowerPoint, guárdalo como .pptx y vuelve a intentarlo.")
+    if extension == ".docx":
+        _documento(a.pdf, a.idioma)
+        return
+    if extension == ".doc":
+        raise SystemExit("Es un Word antiguo (.doc). Ábrelo en Word, guárdalo como .docx y vuelve a intentarlo.")
 
     base = a.pdf.with_suffix("")
     plano = base.with_name(base.name + "_plano.pdf")

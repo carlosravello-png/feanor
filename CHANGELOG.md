@@ -5,6 +5,54 @@ Las mediciones del banco y los umbrales de las versiones 0.2.0 a 0.4.5 están
 en [CALIBRACION.md](CALIBRACION.md). Las versiones anteriores a 0.4.6 están en
 el historial de git, cada una con su etiqueta (`v0.1.0` a `v0.4.5`).
 
+## 0.5.1 · Word (.docx) a Markdown (19/11/2026)
+
+**Qué cambió**
+- Feanor acepta documentos `.docx` (módulo nuevo `documento.py`). Copia el
+  texto tal cual, en el orden del documento: títulos como encabezados (por el
+  estilo «Título N» o el nivel de esquema), listas con su sangría (la
+  numeración puede venir del párrafo o de su estilo), tablas como tablas (una celda
+  combinada se escribe una vez), cuadros de texto marcados donde están
+  anclados, y notas al pie y al final con su marca `[^n]` y su texto al final.
+- Las listas numeradas conservan su número, contado como lo cuenta Word (el
+  inicio de cada lista, los reinicios por nivel y el rótulo: «3.», «b)»,
+  «IV.», «6.2.»). Un número simple sale como lista numerada de Markdown
+  («3. texto»); los demás rótulos se conservan tal cual detrás de una viñeta
+  («- b) texto»), porque Markdown solo numera con cifras. Las de viñetas
+  siguen como viñetas.
+- Las imágenes con texto se leen con OCR, con las mismas reglas y marcas que en
+  PowerPoint.
+- No se incluyen: encabezados y pies de página, texto eliminado con control de
+  cambios, comentarios. Un `.doc` antiguo pide guardarlo como `.docx`.
+- Dependencia nueva: python-docx (licencia MIT, verificada en PyPI el
+  19/11/2026, versión 1.2.0).
+
+**Qué quedó igual a propósito**: PDF y PowerPoint.
+
+**Con qué se probó**
+- 10 documentos de Word del autor, de 20 a 12 000 palabras: tesis, análisis
+  financieros con 22 tablas, un trabajo con cuadros de texto, títulos con
+  estilo propio y notas al pie, un artículo de blog con 7 imágenes.
+- Control de pérdidas: se contaron las palabras del documento original contra
+  las del `.md`, palabra por palabra. No se pierde texto; las únicas
+  diferencias son los índices, donde el título y el número de página van
+  separados por un tabulador, y las notas al pie, que el `.md` incluye.
+- Listas numeradas: en los 10 documentos, la versión con números contra la
+  versión sin ellos no pierde ninguna palabra; solo suma los rótulos (en la
+  tesis, los romanos del índice; en la evaluación financiera, «a)» a «e)»).
+- Pruebas automáticas: 26, dos nuevas (títulos, listas, tabla con celda
+  combinada y texto borrado con control de cambios que no debe aparecer; y
+  listas numeradas con su número).
+
+**Límites declarados**
+- Las tablas de Markdown no tienen celdas combinadas: la combinada se escribe
+  una vez y las que ocupa quedan vacías.
+- En los índices, el título y el número de página quedan separados.
+- Los formatos de numeración raros (ordinales en palabras, numeración china u
+  otros) salen como cifras.
+- Las imágenes que son capturas de pantalla dan mucho ruido de OCR, aunque
+  marcado.
+
 ## 0.5.0 · Ruta digital: Feanor mira de dónde sale el texto de cada página (19/11/2026)
 
 **Qué cambió**

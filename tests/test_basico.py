@@ -416,3 +416,53 @@ def test_ruta_digital_de_punta_a_punta(tmp_path):
     _pdf_de_prueba(fotos, ["escaneada"] * 3 + ["digital"])
     assert not _ruta_digital(fotos, tmp_path / "fotos_ocr.md", tmp_path / "f.json", 0.0)
     assert not (tmp_path / "fotos_ocr.md").exists()
+
+
+def test_word_a_markdown(tmp_path):
+    """Títulos, listas, tabla con celda combinada; el texto borrado con control de
+    cambios no aparece."""
+    docx = pytest.importorskip("docx")
+    from docx.oxml.ns import qn
+    from lxml import etree
+    from aplanar_libro.documento import docx_a_markdown
+
+    d = docx.Document()
+    d.add_heading("Introducción", level=1)
+    d.add_heading("Antecedentes", level=2)
+    p = d.add_paragraph("Texto que queda")
+    borrado = etree.SubElement(p._p, qn("w:del"), {qn("w:id"): "1", qn("w:author"): "x"})
+    r = etree.SubElement(borrado, qn("w:r"))
+    etree.SubElement(r, qn("w:delText")).text = " TEXTO BORRADO"
+    d.add_paragraph("primer punto", style="List Bullet")
+    d.add_paragraph("segundo punto", style="List Bullet")
+    t = d.add_table(rows=2, cols=3)
+    t.cell(0, 0).merge(t.cell(0, 1)).text = "Fármaco"
+    t.cell(0, 2).text = "Dosis"
+    t.cell(1, 0).text, t.cell(1, 1).text, t.cell(1, 2).text = "A", "oral", "5 mg/kg"
+    entrada, salida = tmp_path / "trabajo.docx", tmp_path / "trabajo.md"
+    d.save(entrada)
+    r = docx_a_markdown(entrada, salida)
+    md = salida.read_text(encoding="utf-8")
+    assert "# Introducción" in md and "## Antecedentes" in md
+    assert "- primer punto" in md and "- segundo punto" in md
+    assert "| Fármaco |  | Dosis |" in md and "| A | oral | 5 mg/kg |" in md
+    assert "Texto que queda" in md and "BORRADO" not in md
+    assert "sin OCR" in md and r["tablas"] == 1 and r["titulos"] == 2
+
+
+def test_word_listas_numeradas(tmp_path):
+    """Las listas numeradas conservan su número; las de viñetas siguen como viñetas."""
+    docx = pytest.importorskip("docx")
+    from aplanar_libro.documento import docx_a_markdown
+
+    d = docx.Document()
+    d.add_paragraph("primer paso", style="List Number")
+    d.add_paragraph("segundo paso", style="List Number")
+    d.add_paragraph("tercer paso", style="List Number")
+    d.add_paragraph("una viñeta", style="List Bullet")
+    entrada, salida = tmp_path / "pasos.docx", tmp_path / "pasos.md"
+    d.save(entrada)
+    docx_a_markdown(entrada, salida)
+    md = salida.read_text(encoding="utf-8")
+    assert "1. primer paso" in md and "2. segundo paso" in md and "3. tercer paso" in md
+    assert "- una viñeta" in md
