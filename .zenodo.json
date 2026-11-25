@@ -1,6 +1,6 @@
 {
   "title": "Feanor",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "upload_type": "software",
   "description": "<p>Feanor turns scanned or photographed books, thesis PDFs, Word documents and PowerPoint presentations in Spanish into Markdown. It flattens pages that curve towards the spine before OCR, records where the text of each page comes from (born-digital, earlier OCR layer or scanned), keeps the raw text of every page, locates the references section, and processes whole folders of theses with one result per file and a full record of each run (SHA-256 of the source, tool versions, git commit).</p><p>Every claim in the README is mapped to the automated test or the measurement behind it in docs/VALIDATION.md, which also lists what is not validated. The code, its messages and the CHANGELOG are in Spanish; the README and the validation document are also in English.</p><p>Feanor does not produce verified text: figures, doses, quotations and names must be checked against the original.</p>",
   "creators": [

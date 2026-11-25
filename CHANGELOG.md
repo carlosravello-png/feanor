@@ -10,6 +10,72 @@ entry lists what changed, what was deliberately left unchanged, what it was
 tested with and its declared limits. A summary in English is in the
 [README](README.md) and in [docs/VALIDATION.md](docs/VALIDATION.md).*
 
+## 0.6.3 · El lote se niega si el CSV no coincide con ningún PDF; Feanor en PyPI (25/11/2026)
+
+**Qué cambió**
+- `lote.py`, `_exigir_coincidencias`: con `--metadatos`, si ninguna fila del
+  CSV coincide con un PDF de la carpeta, o si el CSV no tiene filas, el lote
+  se detiene antes de crear la carpeta de salida, con el número de filas y de
+  PDF y tres nombres de cada lado. Antes calculaba el SHA-256 de cada PDF y
+  los apartaba todos con «no está en el CSV de metadatos», y dejaba un
+  `_lote` sin ninguna tesis convertida.
+- La carpeta de salida del lote se crea después de esas comprobaciones: los
+  errores de argumentos (`--anios` sin `--metadatos`, `--auto` con
+  `--metadatos`) ya no dejan una carpeta vacía.
+- Al empezar un lote con `--metadatos`, antes de convertir nada, Feanor dice
+  cuántos coinciden: «coinciden N de M PDF y N de K filas». Una coincidencia
+  parcial muy baja se ve sin esperar la corrida.
+- `test_lote_csv_sin_coincidencias` (CSV con los nombres sin extensión, CSV
+  sin filas y CSV con una sola coincidencia) y `test_lote_aviso_de_coincidencias`.
+  Son 45 pruebas.
+- Segundo comando, `feanor-el-aplasta-libros`, igual a `feanor`: el paquete
+  `feanor` de PyPI es otro proyecto y también instala un comando `feanor`.
+- `.github/workflows/tests.yml`: el CI corre las pruebas con Python 3.10 y
+  3.13 (antes, solo 3.12).
+- Publicación en PyPI como `feanor-el-aplasta-libros`:
+  `.github/workflows/publish.yml` construye el paquete desde la etiqueta del
+  Release y lo sube con *trusted publishing* (sin token guardado).
+  `pyproject.toml` gana descripción en inglés, palabras clave, clasificadores
+  y enlaces (repositorio, validación, CHANGELOG, DOI). Los enlaces del README
+  a otros archivos del repositorio pasan a absolutos, para que funcionen en la
+  página de PyPI; la instalación pasa a `python -m pip install
+  feanor-el-aplasta-libros`.
+- README y CITATION.cff: el DOI de la 0.6.3 y su SWHID se conocen solo
+  después del Release. Hasta entonces, la cita del README no lleva número de
+  versión y usa el DOI que agrupa todas (el que siempre abre la última), con
+  la indicación de citar la versión usada con su propio DOI; CITATION.cff deja
+  ese DOI solo en `identifiers`, sin `doi:` arriba, para no unir «0.6.3» con
+  un DOI que mañana abrirá otra versión. Software Heritage enlaza al origen.
+  Un commit posterior en `main` agrega el DOI y el SWHID de la 0.6.3.
+- README: el ejemplo «el lote de calibración del léxico» pasa a «un lote con
+  metadatos», con destino `D:\salida_lote`. Nombraba como destino
+  `D:\tesis calibracion`, una carpeta que contiene otra corrida (con `--auto`,
+  sin metadatos ni `--cuerpo`).
+- `.zenodo.json` pasa a 0.6.3: cuando el repositorio tiene `.zenodo.json`,
+  Zenodo toma de ahí la versión, no de CITATION.cff.
+
+**Qué quedó igual a propósito**
+- Con una sola fila que coincida, el lote hace lo mismo que en la 0.6.2: los
+  PDF sin fila se apartan uno por uno. No hay umbral de coincidencia parcial.
+- La comparación sigue siendo por el nombre exacto: no se ignoran mayúsculas,
+  extensión ni carpeta, para no unir una tesis con la fila de otra.
+- Ningún otro archivo del paquete cambia, salvo `__version__`.
+
+**Con qué se probó**
+- Las 45 pruebas, sin ninguna saltada, en Linux con Python 3.10, 3.11, 3.12 y
+  3.13. `test_lote_csv_sin_coincidencias` falla con el `lote.py` de la 0.6.2
+  («DID NOT RAISE SystemExit») y pasa con el de la 0.6.3.
+- El paquete construido (`python -m build`) pasa `twine check`; su contenido
+  es el paquete, las pruebas, README, LICENSE y `pyproject.toml`. Instalado
+  desde el wheel, responden los dos comandos.
+
+**Límites declarados**
+- Una coincidencia parcial muy baja (por ejemplo, 1 de 80) no detiene el lote:
+  se ve antes de empezar, en el aviso «coinciden N de M PDF y N de K filas»,
+  y al final en el resumen, en las filas apartadas con «no está en el CSV».
+- La página de PyPI enlaza a `main`: si la documentación cambia después, el
+  enlace muestra la versión nueva, no la 0.6.3.
+
 ## 0.6.2 · Una prueba de PowerPoint deja de depender del texto exacto del OCR (24/11/2026)
 
 **Qué cambió**

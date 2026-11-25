@@ -2,11 +2,11 @@
 
 [English](VALIDATION.md) · **Español**
 
-Versión 0.6.2 (24/11/2026). Este documento cruza cada resultado medido y cada comportamiento que afirma el [README](../README.es.md) con lo que lo respalda. Los parámetros (umbrales, valores por defecto, máximos) son decisiones de diseño: el README dice cuáles son, y los que salen de una medición están abajo con ella. Lo que no tiene respaldo está en «Lo que no está validado».
+Versión 0.6.3 (25/11/2026). Este documento cruza cada resultado medido y cada comportamiento que afirma el [README](../README.es.md) con lo que lo respalda. Los parámetros (umbrales, valores por defecto, máximos) son decisiones de diseño: el README dice cuáles son, y los que salen de una medición están abajo con ella. Lo que no tiene respaldo está en «Lo que no está validado».
 
 **Tipos de respaldo**
 
-- **Prueba:** una prueba automática de `tests/test_basico.py`. Arma un caso pequeño con texto inventado (salvo algunos fragmentos de una línea de los libros del banco, que reproducen la forma de un error real) y falla si Feanor deja de hacer lo que se afirma. Se corre con `python -m pytest -q`; son 43. Con la 0.6.0 pasaron las 43, sin ninguna saltada, en Linux (entorno de desarrollo) y en Windows (la PC del autor, 24/11/2026). Desde la 0.6.1 corren además en GitHub en cada cambio (`.github/workflows/tests.yml`); el resultado de cada corrida es público en la pestaña Actions del repositorio y en el badge «tests» del README. Una prueba muestra que la regla hace lo que dice en ese caso, no que acierte en todo material real.
+- **Prueba:** una prueba automática de `tests/test_basico.py`. Arma un caso pequeño con texto inventado (salvo algunos fragmentos de una línea de los libros del banco, que reproducen la forma de un error real) y falla si Feanor deja de hacer lo que se afirma. Se corre con `python -m pytest -q`; son 45. Con la 0.6.0 pasaron las 43 que había entonces, sin ninguna saltada, en Linux (entorno de desarrollo) y en Windows (la PC del autor, 24/11/2026); con la 0.6.3 pasaron las 45, sin ninguna saltada, en Linux con Python 3.10, 3.11, 3.12 y 3.13 (entorno de desarrollo, 25/11/2026). Desde la 0.6.1 corren además en GitHub en cada cambio (`.github/workflows/tests.yml`); el resultado de cada corrida es público en la pestaña Actions del repositorio y en el badge «tests» del README. Una prueba muestra que la regla hace lo que dice en ese caso, no que acierte en todo material real.
 - **Medición:** una medición con material real (libros, fotos de celular, tesis), con su fecha y su muestra, en [CALIBRACION.md](../CALIBRACION.md) o en la sección «Con qué se probó» de la versión en el [CHANGELOG](../CHANGELOG.md). Describe esa muestra; no es una tasa de error general.
 
 ## Afirmaciones y su respaldo
@@ -76,6 +76,8 @@ Versión 0.6.2 (24/11/2026). Este documento cruza cada resultado medido y cada c
 |---|---|---|---|
 | 28 | Un resultado por PDF; la escaneada se aparta, el PDF roto falla sin tumbar el lote y en la segunda corrida lo hecho se salta | `test_lote_una_salida_por_pdf` | Prueba |
 | 29 | Con el CSV: cada resultado lleva sus metadatos; no se procesa lo que está fuera de 2015–2017, con SHA-256 distinto, con descarga fallida o sin fila; todo va a la carpeta exacta | `test_lote_con_metadatos_y_candado` | Prueba |
+| 29b | Si ninguna fila del CSV coincide con un PDF (o el CSV no tiene filas), el lote se detiene antes de crear la carpeta de salida y el mensaje muestra nombres de los dos lados; con una coincidencia, sigue | `test_lote_csv_sin_coincidencias` | Prueba |
+| 29c | Antes de convertir nada, un lote con el CSV dice cuántos PDF y cuántas filas coinciden («coinciden N de M PDF y N de K filas») | `test_lote_aviso_de_coincidencias` | Prueba |
 | 30 | El cuerpo deja fuera el encabezado repetido, el índice, las referencias y los anexos | `test_cuerpo_sin_margenes_repetidos_ni_referencias` | Prueba |
 | 31 | Una tesis con texto visible sobre fotos de página completa sale «digital», pero se marca para revisar | `test_lote_marca_texto_sobre_foto` | Prueba |
 | 32 | Con `--auto`, cada archivo con su método; los de otro tipo o dañados van a fallos con su motivo; sin `--auto`, el lote sigue como en la 0.5.3 | `test_lote_automatico_un_metodo_por_archivo` | Prueba |

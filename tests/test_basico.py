@@ -639,6 +639,67 @@ def test_lote_con_metadatos_y_candado(tmp_path):
     assert "20.500.12692_9.pdf" in (destino / "_lote.md").read_text(encoding="utf-8")
 
 
+def test_lote_csv_sin_coincidencias(tmp_path):
+    """Si ninguna fila del CSV coincide con un PDF de la carpeta (aquí, el CSV
+    trae los nombres sin extensión), el lote se niega antes de crear la carpeta
+    de salida, y el mensaje muestra nombres de los dos lados. Con una sola
+    coincidencia, sigue. Un CSV sin filas también se niega."""
+    import csv
+    from feanor_el_aplasta_libros.cli import main
+    carpeta, destino = tmp_path / "tesis", tmp_path / "salida lote"
+    carpeta.mkdir()
+    for k in (1, 2):
+        _tesis_sintetica(carpeta / f"20.500.12692_{k}.pdf")
+
+    def csv_con(nombres, ruta):
+        with open(ruta, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["handle", "archivo", "universidad", "carrera", "anio", "titulo", "estado", "sha256"])
+            for n in nombres:
+                w.writerow(["20.500.12692/x", n, "UNT", "Educación", "2016", "Título", "bajada", ""])
+        return ruta
+
+    sin_ext = csv_con(["20.500.12692_1", "20.500.12692_2"], tmp_path / "sin_extension.csv")
+    with pytest.raises(SystemExit) as e:
+        main([str(carpeta), "--solo-digitales", "--metadatos", str(sin_ext), "--destino", str(destino)])
+    msj = str(e.value)
+    assert "Ninguna fila" in msj and "2 filas" in msj and "2 PDF" in msj
+    assert "20.500.12692_1, 20.500.12692_2" in msj and "20.500.12692_1.pdf" in msj
+    assert not destino.exists()                                   # no se creó nada
+
+    vacio = csv_con([], tmp_path / "vacio.csv")
+    with pytest.raises(SystemExit) as e:
+        main([str(carpeta), "--solo-digitales", "--metadatos", str(vacio), "--destino", str(destino)])
+    assert "ninguna fila" in str(e.value) and not destino.exists()
+
+    uno = csv_con(["20.500.12692_1.pdf"], tmp_path / "uno.csv")   # una coincidencia: el lote sigue
+    main([str(carpeta), "--solo-digitales", "--metadatos", str(uno), "--destino", str(destino)])
+    res = {f["archivo"]: f for f in csv.DictReader(open(destino / "_lote.csv", encoding="utf-8-sig"))}
+    assert res["20.500.12692_1.pdf"]["estado"] == "convertida"
+    assert "no está en el CSV" in res["20.500.12692_2.pdf"]["motivo"]
+
+def test_lote_aviso_de_coincidencias(tmp_path, capsys):
+    """Al empezar un lote con --metadatos, Feanor dice cuántos PDF y cuántas
+    filas coinciden, antes de convertir nada: así una coincidencia parcial muy
+    baja se ve sin esperar la corrida."""
+    import csv
+    from feanor_el_aplasta_libros.cli import main
+    carpeta, destino = tmp_path / "tesis", tmp_path / "salida lote"
+    carpeta.mkdir()
+    for k in (1, 2, 3):
+        _tesis_sintetica(carpeta / f"20.500.12692_{k}.pdf")
+    ruta = tmp_path / "parcial.csv"
+    with open(ruta, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["handle", "archivo", "universidad", "carrera", "anio", "titulo", "estado", "sha256"])
+        for n in ("20.500.12692_1.pdf", "20.500.12692_8.pdf", "20.500.12692_9.pdf", "20.500.12692_10.pdf"):
+            w.writerow(["20.500.12692/x", n, "UNT", "Educación", "2016", "Título", "bajada", ""])
+    main([str(carpeta), "--solo-digitales", "--metadatos", str(ruta), "--destino", str(destino)])
+    salida = capsys.readouterr().out
+    aviso = [l for l in salida.splitlines() if l.strip().startswith("coinciden ")]   # tmp_path también dice «coinciden…»
+    assert aviso == ["  coinciden 1 de 3 PDF y 1 de 4 filas"], salida
+    assert salida.index("\n  coinciden ") < salida.index("[1/3]")   # antes del primer archivo
+
 def test_cuerpo_sin_margenes_repetidos_ni_referencias():
     """El cuerpo deja fuera el encabezado repetido (solo en el margen), el
     índice con puntos guía, las referencias y los anexos."""

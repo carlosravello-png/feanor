@@ -2,11 +2,11 @@
 
 **English** · [Español](VALIDACION.md)
 
-Version 0.6.2 (2026-11-24). This document maps each measured result and each behaviour claimed in the [README](../README.md) to what supports it. Parameters (thresholds, defaults, maximums) are design decisions: the README states them, and those that come from a measurement are listed below with it. What has no support is under «What is not validated».
+Version 0.6.3 (2026-11-25). This document maps each measured result and each behaviour claimed in the [README](../README.md) to what supports it. Parameters (thresholds, defaults, maximums) are design decisions: the README states them, and those that come from a measurement are listed below with it. What has no support is under «What is not validated».
 
 **Types of support**
 
-- **Test:** an automated test in `tests/test_basico.py`. It builds a small case with invented text (except for a few one-line fragments from the bench books, which reproduce the shape of a real error) and fails if Feanor stops doing what is claimed. Run with `python -m pytest -q`; there are 43. With 0.6.0 all 43 passed, none skipped, on Linux (development environment) and on Windows (the author's PC, 2026-11-24). Since 0.6.1 they also run on GitHub on every change (`.github/workflows/tests.yml`); the result of each run is public in the repository's Actions tab and in the README's «tests» badge. A test shows that the rule does what it says in that case, not that it is right on all real material.
+- **Test:** an automated test in `tests/test_basico.py`. It builds a small case with invented text (except for a few one-line fragments from the bench books, which reproduce the shape of a real error) and fails if Feanor stops doing what is claimed. Run with `python -m pytest -q`; there are 45. With 0.6.0 all 43 then in place passed, none skipped, on Linux (development environment) and on Windows (the author's PC, 2026-11-24); with 0.6.3 all 45 passed, none skipped, on Linux with Python 3.10, 3.11, 3.12 and 3.13 (development environment, 2026-11-25). Since 0.6.1 they also run on GitHub on every change (`.github/workflows/tests.yml`); the result of each run is public in the repository's Actions tab and in the README's «tests» badge. A test shows that the rule does what it says in that case, not that it is right on all real material.
 - **Measurement:** a measurement with real material (books, phone photos, theses), with its date and sample, in [CALIBRACION.md](../CALIBRACION.md) or in the «Con qué se probó» ("what it was tested with") section of the version in the [CHANGELOG](../CHANGELOG.md) (both in Spanish). It describes that sample; it is not a general error rate.
 
 Test names are in Spanish, as in the code.
@@ -78,6 +78,8 @@ Test names are in Spanish, as in the code.
 |---|---|---|---|
 | 28 | One result per PDF; the scanned one is set aside, the broken PDF fails without stopping the batch, and on the second run finished work is skipped | `test_lote_una_salida_por_pdf` | Test |
 | 29 | With the CSV: each result carries its metadata; nothing outside 2015–2017, with a different SHA-256, with a failed download or without a row is processed; everything goes to the exact folder | `test_lote_con_metadatos_y_candado` | Test |
+| 29b | If no CSV row matches any PDF (or the CSV has no rows), the batch stops before creating the output folder and the message shows names from both sides; with one match, it goes on | `test_lote_csv_sin_coincidencias` | Test |
+| 29c | Before converting anything, a batch with the CSV prints how many PDFs and rows match («coinciden N de M PDF y N de K filas») | `test_lote_aviso_de_coincidencias` | Test |
 | 30 | The body leaves out the repeated header, the table of contents, the references and the appendices | `test_cuerpo_sin_margenes_repetidos_ni_referencias` | Test |
 | 31 | A thesis with visible text over full-page photos comes out «digital» but is flagged for review | `test_lote_marca_texto_sobre_foto` | Test |
 | 32 | With `--auto`, each file gets its method; files of another type or damaged go to failures with their reason; without `--auto`, batch mode works as in 0.5.3 | `test_lote_automatico_un_metodo_por_archivo` | Test |

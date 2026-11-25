@@ -8,12 +8,17 @@ on:
 jobs:
   pruebas:
     runs-on: ubuntu-24.04
+    # Las puntas de lo que declara pyproject (requires-python >=3.10) y la última.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       # Tesseract con el modelo de español y Ghostscript: sin ellos, las
       # pruebas de OCR se saltarían y el badge no diría lo que dice el README.

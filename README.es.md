@@ -1,16 +1,16 @@
 # Feanor
 
-[English](README.md) · **Español**
+[English](https://github.com/carlosravello-png/feanor/blob/main/README.md) · **Español**
 
-[![tests](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml/badge.svg)](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml) [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24522078.svg)](https://doi.org/10.5281/zenodo.24522078) [![Software Heritage](https://archive.softwareheritage.org/badge/origin/https://github.com/carlosravello-png/feanor/)](https://archive.softwareheritage.org/swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176)
+[![tests](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml/badge.svg)](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml) [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-blue)](https://github.com/carlosravello-png/feanor/blob/main/LICENSE) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24522078.svg)](https://doi.org/10.5281/zenodo.24522078) [![Software Heritage](https://archive.softwareheritage.org/badge/origin/https://github.com/carlosravello-png/feanor/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/carlosravello-png/feanor)
 
 Feanor pasa a Markdown libros escaneados o fotografiados, tesis en PDF, documentos de Word y presentaciones de PowerPoint en español, para leerlos, buscarlos o dárselos a una IA. En las fotos de libros endereza las páginas que se curvan hacia el lomo antes de leerlas.
 
-- **Versión:** 0.6.2 (24/11/2026). Historial en [CHANGELOG.md](CHANGELOG.md).
-- **Nombre:** la herramienta se llama **Feanor**; el paquete de Python, `feanor_el_aplasta_libros` (en pip, `feanor-el-aplasta-libros`). Hasta la 0.5.5 se llamó `aplanar-libro`.
+- **Versión:** 0.6.3 (25/11/2026). Historial en [CHANGELOG.md](https://github.com/carlosravello-png/feanor/blob/main/CHANGELOG.md).
+- **Nombre:** la herramienta se llama **Feanor**; el paquete de Python, `feanor_el_aplasta_libros` (en PyPI, `feanor-el-aplasta-libros`). Hasta la 0.5.5 se llamó `aplanar-libro`. El paquete `feanor` de PyPI es otro proyecto y también instala un comando `feanor`: no instales los dos en el mismo entorno. Feanor instala además el comando `feanor-el-aplasta-libros`, que hace lo mismo que `feanor` y no choca.
 - **Estado:** software de investigación, en uso en un estudio propio de tesis en español. Lo que garantiza y lo que no está en [Verificación](#verificación) y en [Límites conocidos](#límites-conocidos).
 - **Lo más importante:** Feanor no produce texto verificado. Las cifras, las dosis, las citas y los nombres se comprueban siempre en el original.
-- **Idioma:** el código, sus comentarios y los mensajes que Feanor muestra están en español, porque la herramienta está hecha para material en español. Este README y [docs/VALIDACION.md](docs/VALIDACION.md) tienen versión en inglés; los demás documentos están en español.
+- **Idioma:** el código, sus comentarios y los mensajes que Feanor muestra están en español, porque la herramienta está hecha para material en español. Este README y [docs/VALIDACION.md](https://github.com/carlosravello-png/feanor/blob/main/docs/VALIDACION.md) tienen versión en inglés; los demás documentos están en español.
 
 ## Qué hace
 
@@ -47,8 +47,10 @@ uv tool update-shell
 Feanor:
 
 ```
-python -m pip install git+https://github.com/carlosravello-png/feanor.git
+python -m pip install feanor-el-aplasta-libros
 ```
+
+La versión en desarrollo, directo de GitHub: `python -m pip install git+https://github.com/carlosravello-png/feanor.git`.
 
 Si tenías instalada una versión anterior con el nombre `aplanar-libro`, desinstálala antes: `python -m pip uninstall aplanar-libro`.
 
@@ -145,31 +147,31 @@ El OCR sin aplanar usa OCRmyPDF con `--force-ocr` solo en las páginas que son s
 
 **Comparación forzada de OCR (`--comparar-ocr N`).** Al final del lote toma al azar (`--semilla`, por defecto 20261119) N PDF digitales y, de cada uno, `--paginas-comparacion` páginas del cuerpo (por defecto 10; páginas que quedan en el cuerpo con 150 palabras o más, así que nunca la portada, el índice, las referencias ni los anexos). Las convierte en imagen, las lee con el mismo OCR sin aplanar (el comando exacto queda registrado) y las compara con su texto nativo, después de normalizar los dos igual (NFKC para las ligaduras, guion de fin de línea unido): tasa de error por palabra y similitud de caracteres, en `comparacion_ocr/`, con el texto de cada página al lado. Si un PDF elegido no tiene páginas de cuerpo, se reemplaza por el siguiente del orden al azar, y el resumen dice cuántos se pidieron y cuántos se midieron.
 
-**Lote con metadatos (para un corpus muestreado).** Con `--metadatos lista.csv`, cada PDF se une con su fila del CSV por el nombre del archivo (columnas obligatorias: `archivo`, `handle`, `universidad`, `carrera`, `anio`; opcionales: `titulo`, `estado`, `sha256`), y el `_lote.csv` y el `.json` de cada tesis llevan esos datos. No se procesa ningún PDF que no esté en el CSV, cuyo SHA-256 no coincida con el anotado al bajarlo, o cuya descarga figure como fallida. Con `--anios 2015-2017`, tampoco uno cuyo año quede fuera del rango (candado). Las filas del CSV sin su PDF se listan. `--destino` pone todo en una carpeta exacta.
+**Lote con metadatos (para un corpus muestreado).** Con `--metadatos lista.csv`, cada PDF se une con su fila del CSV por el nombre del archivo (columnas obligatorias: `archivo`, `handle`, `universidad`, `carrera`, `anio`; opcionales: `titulo`, `estado`, `sha256`), y el `_lote.csv` y el `.json` de cada tesis llevan esos datos. No se procesa ningún PDF que no esté en el CSV, cuyo SHA-256 no coincida con el anotado al bajarlo, o cuya descarga figure como fallida. Con `--anios 2015-2017`, tampoco uno cuyo año quede fuera del rango (candado). Las filas del CSV sin su PDF se listan. Si ninguna fila del CSV coincide con un PDF de la carpeta (o el CSV no tiene filas), Feanor se detiene antes de crear la carpeta de salida y muestra nombres de los dos lados; se compara el nombre exacto del archivo, con su extensión. Antes de convertir nada, dice cuántos coinciden («coinciden N de M PDF y N de K filas»). `--destino` pone todo en una carpeta exacta.
 
 **Cuerpo para análisis léxico (`--cuerpo`).** En el lote, escribe además `<nombre>_cuerpo.md`: el texto desde el inicio hasta el título de referencias (sin referencias ni anexos), sin las páginas de índice y sin los encabezados y pies repetidos (una línea de las 3 primeras o las 3 últimas de la página que aparece, sin números ni signos, en el margen de más de la mitad de las páginas; la misma frase dentro del texto se conserva). El cuerpo se normaliza con NFKC (las ligaduras «ﬁ», «ﬂ» pasan a sus letras); el `.md` de siempre no cambia y conserva el texto tal cual. Con menos de 3 páginas con texto no se quita ningún margen. El `.json` dice cuántas palabras y páginas quedaron, cuántas líneas de margen se quitaron y cuáles. **Para revisar a mano**, sin sacarlas del lote, se marcan las tesis con texto visible sobre fotos de página completa (un sello sobre un escaneo), con menos de 100 palabras por página en el cuerpo, sin título de referencias (el cuerpo llega entonces hasta el final) o con las referencias empezando antes de la mitad del documento.
 
-**Ejemplo: el lote de calibración del léxico.** Es la corrida con que se preparan las tesis de calibración del estudio del autor (la carpeta de tesis bajadas, con su `calibracion.csv`):
+**Ejemplo: un lote con metadatos.** Una carpeta de tesis bajadas con su CSV, solo las de texto digital y de los años 2015–2017, con el cuerpo para el análisis léxico y la comparación forzada de OCR en 20 tesis:
 
 ```
-feanor "C:\ruta\tesis_calibracion" --solo-digitales --cuerpo --metadatos "C:\ruta\tesis_calibracion\calibracion.csv" --anios 2015-2017 --comparar-ocr 20 --paginas-comparacion 10 --semilla 20261119 --destino "D:\tesis calibracion"
+feanor "C:\ruta\tesis_calibracion" --solo-digitales --cuerpo --metadatos "C:\ruta\tesis_calibracion\calibracion.csv" --anios 2015-2017 --comparar-ocr 20 --paginas-comparacion 10 --semilla 20261119 --destino "D:\salida_lote"
 ```
 
 ## Verificación
 
 Feanor se prueba en dos niveles, y cada uno dice algo distinto:
 
-1. **Pruebas automáticas** (`tests/test_basico.py`, 43 en la versión 0.6.2). Cada una arma un caso pequeño (un PDF, un Word, un PowerPoint, una carpeta de tesis) con texto inventado, salvo algunos fragmentos de una línea de los libros del banco (títulos de capítulo con su folio, una frase), que reproducen la forma de un error real. Comprueba que Feanor hace lo que este README dice. Ningún libro con derechos de autor entra en el repositorio: solo esos fragmentos. Las que necesitan Tesseract, OCRmyPDF, `python-docx` o `python-pptx` se saltan si no están instalados. Desde la 0.6.1 corren también en GitHub en cada cambio, con Tesseract, OCRmyPDF y Ghostscript instalados; el badge «tests» de arriba muestra el resultado de la última corrida. Para correrlas:
+1. **Pruebas automáticas** (`tests/test_basico.py`, 45 en la versión 0.6.3). Cada una arma un caso pequeño (un PDF, un Word, un PowerPoint, una carpeta de tesis) con texto inventado, salvo algunos fragmentos de una línea de los libros del banco (títulos de capítulo con su folio, una frase), que reproducen la forma de un error real. Comprueba que Feanor hace lo que este README dice. Ningún libro con derechos de autor entra en el repositorio: solo esos fragmentos. Las que necesitan Tesseract, OCRmyPDF, `python-docx` o `python-pptx` se saltan si no están instalados. Desde la 0.6.1 corren también en GitHub en cada cambio, con Tesseract, OCRmyPDF y Ghostscript instalados; el badge «tests» de arriba muestra el resultado de la última corrida. Para correrlas:
 
    ```
    python -m pip install pytest
    python -m pytest -q
    ```
 
-2. **Mediciones con material real** (libros, fotos de celular, tesis). Están en [CALIBRACION.md](CALIBRACION.md) y en la sección «Con qué se probó» de cada versión del [CHANGELOG.md](CHANGELOG.md), con el material, la fecha y lo que no garantizan.
+2. **Mediciones con material real** (libros, fotos de celular, tesis). Están en [CALIBRACION.md](https://github.com/carlosravello-png/feanor/blob/main/CALIBRACION.md) y en la sección «Con qué se probó» de cada versión del [CHANGELOG.md](https://github.com/carlosravello-png/feanor/blob/main/CHANGELOG.md), con el material, la fecha y lo que no garantizan.
 
 
-[docs/VALIDACION.md](docs/VALIDACION.md) cruza cada resultado medido y cada comportamiento que afirma este README con la prueba o la medición que lo respalda, y lista lo que **no** está validado.
+[docs/VALIDACION.md](https://github.com/carlosravello-png/feanor/blob/main/docs/VALIDACION.md) cruza cada resultado medido y cada comportamiento que afirma este README con la prueba o la medición que lo respalda, y lista lo que **no** está validado.
 
 ## Lo que se midió
 
@@ -183,13 +185,13 @@ Pruebas del 13/11/2026 con un libro fotografiado con el celular (14 páginas; el
 ## Límites conocidos
 
 - **Uso clínico y con IA:** esta herramienta no produce texto verificado. Dosis, valores de referencia, nombres de fármacos y cualquier cifra que vaya a usarse en una decisión clínica o en una publicación se comprueban en la fuente original. Lo mismo si el `.md` se le pasa a una IA: la IA no puede detectar un error de OCR en una cifra. Cada `.md` lleva este aviso en la cabecera.
-- **Curva muy cerrada junto al lomo:** el aplanado puede dejar las primeras líneas todavía un poco curvas, y entonces se pierde alguna palabra al final. Desde la versión 0.2.0 Feanor mide ese resto de curva y marca la página con «REVISAR A MANO». En las 14 páginas de prueba marcó las tres malas y dio una falsa alarma. El umbral es provisional: ver [CALIBRACION.md](CALIBRACION.md).
+- **Curva muy cerrada junto al lomo:** el aplanado puede dejar las primeras líneas todavía un poco curvas, y entonces se pierde alguna palabra al final. Desde la versión 0.2.0 Feanor mide ese resto de curva y marca la página con «REVISAR A MANO». En las 14 páginas de prueba marcó las tres malas y dio una falsa alarma. El umbral es provisional: ver [CALIBRACION.md](https://github.com/carlosravello-png/feanor/blob/main/CALIBRACION.md).
 - **Aplanado que empeora la página:** desde la versión 0.4.3, cada página aplanada se compara con su original en una lectura rápida de Tesseract. Si la aplanada lee menos del 80 % de las palabras, se usa la original y la página se marca. Es una aproximación, no una garantía: la lectura rápida no siempre coincide con el OCR final. En el banco de pruebas, de 19 páginas devueltas a la original, 14 ganaron palabras válidas y 5 perdieron algunas. Esta comprobación cuesta tiempo: en las pruebas, la corrida completa tardó entre un 15 % y un 70 % más según el libro.
 - **Página que no cuadra:** si el paso 1 contó líneas de texto en una página y el OCR sacó menos palabras que líneas, la página se marca. Una página sin líneas detectadas (una figura, una foto muy mala) no se marca por esta regla.
 - **Errores sin curva:** una página que sale mal por sombra o por baja resolución, con las líneas rectas, no se marca.
 - **Páginas con poco texto** (índices, portadas, páginas con figuras): no se aplanan.
 - **Pliegos:** el corte se busca cerca del centro, en la franja vacía o en la sombra del lomo. Desde la versión 0.4.4, un pliego con un lado vacío (la hoja en blanco frente a un inicio de capítulo, una hoja de «Notas») también se parte; antes se aplanaba entero como una sola página ancha y salía mal. Consecuencia: una portada apaisada con el título a un lado sale como dos páginas, una en blanco. La mitad vacía no se descarta: sigue en el PDF y se lee. Una mitad con unas pocas líneas pegadas al borde superior o inferior puede quedar rotulada como «en blanco», aunque su texto se lee igual.
-- **Aplanado que se desboca:** en algunas páginas el cálculo de la curva termina en una solución absurda y la página saldría varias veces más grande y deformada. Desde la versión 0.4.4 se mide el tamaño de salida antes de construir la imagen; si el alto o el ancho quedan fuera de 0,5 a 3,0 veces el de la entrada, el aplanado se descarta, se usa la original y la página se marca. El rango sale del banco de pruebas (ver [CALIBRACION.md](CALIBRACION.md)) y el margen por arriba es estrecho: la página buena más grande midió 2,62 y la mala más chica, 3,37. Tiene un costo: una página descartada puede leerse algo peor que su versión gigante (en el banco, una pasó de 156 a 148 palabras válidas). No resuelve todos los fallos: de 17 páginas del banco que se leen peor aplanadas, el tamaño explica 9.
+- **Aplanado que se desboca:** en algunas páginas el cálculo de la curva termina en una solución absurda y la página saldría varias veces más grande y deformada. Desde la versión 0.4.4 se mide el tamaño de salida antes de construir la imagen; si el alto o el ancho quedan fuera de 0,5 a 3,0 veces el de la entrada, el aplanado se descarta, se usa la original y la página se marca. El rango sale del banco de pruebas (ver [CALIBRACION.md](https://github.com/carlosravello-png/feanor/blob/main/CALIBRACION.md)) y el margen por arriba es estrecho: la página buena más grande midió 2,62 y la mala más chica, 3,37. Tiene un costo: una página descartada puede leerse algo peor que su versión gigante (en el banco, una pasó de 156 a 148 palabras válidas). No resuelve todos los fallos: de 17 páginas del banco que se leen peor aplanadas, el tamaño explica 9.
 - **Resultados distintos entre computadoras:** con la misma versión de Feanor y de JAX, una página difícil dio resultados distintos en dos máquinas. El cálculo es inestable en esas páginas y no se puede prometer que dos computadoras den exactamente lo mismo. Cada corrida deja escrito su entorno en `libro.json` para poder compararlas.
 - **Memoria:** Feanor elige cuántas páginas aplanar a la vez según los núcleos físicos (máximo 8) y la memoria libre, y lo dice en la consola. La memoria por página es una estimación prudente (0,3 GB más 0,05 GB por megapíxel de la página más grande, si saliera del tamaño máximo permitido); en una computadora con poca RAM irá más lento, no debería colgarse. Requiere `psutil`; sin él, usa un valor fijo y lo avisa.
 - **Páginas giradas 90°** (una tabla impresa de costado): se detectan y se marcan, pero no se enderezan bien. Se le pide a OCRmyPDF que las gire, y en la prueba no tuvo confianza suficiente para hacerlo. Hay que leerlas en la imagen.
@@ -232,15 +234,15 @@ Autor: Carlos Eduardo Ravello Joo ([ORCID 0009-0007-5631-7436](https://orcid.org
 
 ## Cómo citar
 
-GitHub muestra el botón «Cite this repository» a partir de [CITATION.cff](CITATION.cff). En texto:
+GitHub muestra el botón «Cite this repository» a partir de [CITATION.cff](https://github.com/carlosravello-png/feanor/blob/main/CITATION.cff). En texto:
 
-> Ravello Joo, C. E. (2026). *Feanor* (versión 0.6.2) [Software]. Zenodo. https://doi.org/10.5281/zenodo.24522079
+> Ravello Joo, C. E. (2026). *Feanor* [Software]. Zenodo. https://doi.org/10.5281/zenodo.24522078
 
-Para citar todas las versiones: [10.5281/zenodo.24522078](https://doi.org/10.5281/zenodo.24522078). Archivo permanente del código de la v0.6.2 en Software Heritage: [swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176](https://archive.softwareheritage.org/swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176).
+Ese DOI agrupa todas las versiones y siempre abre la última. Cita la versión que usaste: cada versión tiene su propio DOI, en su registro de Zenodo y en [CITATION.cff](https://github.com/carlosravello-png/feanor/blob/main/CITATION.cff). Archivo permanente del código en [Software Heritage](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/carlosravello-png/feanor).
 
 ## Licencia
 
-El código de Feanor es MIT: ver [LICENSE](LICENSE). Las dependencias conservan sus propias licencias:
+El código de Feanor es MIT: ver [LICENSE](https://github.com/carlosravello-png/feanor/blob/main/LICENSE). Las dependencias conservan sus propias licencias:
 
 | Dependencia | Licencia | Cómo la usa Feanor |
 |---|---|---|

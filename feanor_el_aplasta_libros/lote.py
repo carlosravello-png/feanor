@@ -70,6 +70,27 @@ def leer_metadatos(ruta: Path) -> dict[str, dict]:
     return filas
 
 
+def _exigir_coincidencias(tabla: dict[str, dict], archivos: list[Path], metadatos: Path, carpeta: Path) -> None:
+    """Se niega antes de crear la carpeta de salida si ninguna fila del CSV
+    coincide con ningún PDF de la carpeta (o si el CSV no tiene filas): sin
+    esto, el lote calculaba el SHA-256 de cada PDF y los apartaba todos con
+    «no está en el CSV de metadatos». Con una sola coincidencia, el lote sigue
+    como antes."""
+    nombres = sorted(p.name for p in archivos)
+    if set(tabla) & set(nombres):
+        return
+    if not tabla:
+        raise SystemExit(f"El CSV de metadatos {metadatos.name} no tiene ninguna fila con nombre de archivo "
+                         f"(columna «archivo»). No se procesó nada.")
+    raise SystemExit(
+        f"Ninguna fila del CSV de metadatos {metadatos.name} coincide con un PDF de {carpeta}: "
+        f"el CSV tiene {len(tabla)} filas y la carpeta {len(nombres)} PDF. No se procesó nada.\n"
+        f"  Se compara el nombre exacto de la columna «archivo»: con extensión, sin carpeta, "
+        f"mayúsculas y minúsculas incluidas.\n"
+        f"  En el CSV: {', '.join(sorted(tabla)[:3])}\n"
+        f"  En la carpeta: {', '.join(nombres[:3]) or '(ningún PDF)'}")
+
+
 def _anios(texto: str | None) -> tuple[int, int] | None:
     if not texto:
         return None
@@ -229,7 +250,6 @@ def procesar_carpeta(carpeta: Path, salida: Path | None, idioma: str = "spa",
             salida = carpeta.parent / "FEANOR_salida"
             print(f"OJO: no existe {SALIDA_POR_DEFECTO.anchor}; el resultado va a {salida}")
     base = destino or salida / carpeta.name
-    base.mkdir(parents=True, exist_ok=True)
     rango = _anios(anios)
     tabla = leer_metadatos(metadatos) if metadatos else None
     if rango and tabla is None:
@@ -243,6 +263,9 @@ def procesar_carpeta(carpeta: Path, salida: Path | None, idioma: str = "spa",
                    and not (metadatos and p.resolve() == metadatos.resolve()))
     archivos = todos if automatico else [p for p in todos if p.suffix.lower() == ".pdf"]
     otros = [p.name for p in todos if p not in archivos]
+    if tabla is not None:
+        _exigir_coincidencias(tabla, archivos, metadatos, carpeta)
+    base.mkdir(parents=True, exist_ok=True)
     print(f"Feanor {__version__} · modo lote: {len(archivos)} archivos en {carpeta}"
           + (f" ({len(otros)} que no son PDF, no se tocan)" if otros else ""))
     print(f"  salida: {base}" + ("  ·  solo texto digital" if solo_digitales else "")
@@ -251,6 +274,8 @@ def procesar_carpeta(carpeta: Path, salida: Path | None, idioma: str = "spa",
         sin_pdf = sorted(set(tabla) - {p.name for p in archivos})
         print(f"  metadatos: {metadatos.name}, {len(tabla)} filas" + (f"; candado de años {rango[0]}–{rango[1]}" if rango else "")
               + (f"; {len(sin_pdf)} filas del CSV sin su PDF en la carpeta" if sin_pdf else ""))
+        n = len(set(tabla) & {p.name for p in archivos})
+        print(f"  coinciden {n} de {len(archivos)} PDF y {n} de {len(tabla)} filas")
     inicio_lote = time.perf_counter()
     filas: list[dict] = []
     for k, arch in enumerate(archivos, start=1):

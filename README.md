@@ -1,16 +1,16 @@
 # Feanor
 
-**English** · [Español](README.es.md)
+**English** · [Español](https://github.com/carlosravello-png/feanor/blob/main/README.es.md)
 
-[![tests](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml/badge.svg)](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24522078.svg)](https://doi.org/10.5281/zenodo.24522078) [![Software Heritage](https://archive.softwareheritage.org/badge/origin/https://github.com/carlosravello-png/feanor/)](https://archive.softwareheritage.org/swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176)
+[![tests](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml/badge.svg)](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/carlosravello-png/feanor/blob/main/LICENSE) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24522078.svg)](https://doi.org/10.5281/zenodo.24522078) [![Software Heritage](https://archive.softwareheritage.org/badge/origin/https://github.com/carlosravello-png/feanor/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/carlosravello-png/feanor)
 
 Feanor turns scanned or photographed books, thesis PDFs, Word documents and PowerPoint presentations in Spanish into Markdown, so they can be read, searched or handed to an AI. With photos of books, it straightens pages that curve towards the spine before reading them.
 
-- **Version:** 0.6.2 (2026-11-24). History in [CHANGELOG.md](CHANGELOG.md) (in Spanish).
-- **Name:** the tool is called **Feanor**; the Python package is `feanor_el_aplasta_libros` (on pip, `feanor-el-aplasta-libros`; the name means "Feanor, the book flattener"). Up to 0.5.5 it was called `aplanar-libro`.
+- **Version:** 0.6.3 (2026-11-25). History in [CHANGELOG.md](https://github.com/carlosravello-png/feanor/blob/main/CHANGELOG.md) (in Spanish).
+- **Name:** the tool is called **Feanor**; the Python package is `feanor_el_aplasta_libros` (on PyPI, `feanor-el-aplasta-libros`; the name means "Feanor, the book flattener"). Up to 0.5.5 it was called `aplanar-libro`. The package called `feanor` on PyPI is a different project and also installs a `feanor` command: do not install both in the same environment. Feanor also installs the command `feanor-el-aplasta-libros`, which does the same as `feanor` and does not clash.
 - **Status:** research software, in use in the author's own study of Spanish-language theses. What it guarantees and what it does not is under [Verification](#verification) and [Known limits](#known-limits).
 - **Most important:** Feanor does not produce verified text. Figures, doses, quotations and names must always be checked against the original.
-- **Language:** the code, its comments and the messages Feanor prints are in Spanish, because the tool is built for Spanish-language material. This README and [docs/VALIDATION.md](docs/VALIDATION.md) are in English; the other documents are in Spanish.
+- **Language:** the code, its comments and the messages Feanor prints are in Spanish, because the tool is built for Spanish-language material. This README and [docs/VALIDATION.md](https://github.com/carlosravello-png/feanor/blob/main/docs/VALIDATION.md) are in English; the other documents are in Spanish.
 
 ## What it does
 
@@ -47,8 +47,10 @@ uv tool update-shell
 Feanor:
 
 ```
-python -m pip install git+https://github.com/carlosravello-png/feanor.git
+python -m pip install feanor-el-aplasta-libros
 ```
+
+The development version, straight from GitHub: `python -m pip install git+https://github.com/carlosravello-png/feanor.git`.
 
 If you had an earlier version installed under the name `aplanar-libro`, uninstall it first: `python -m pip uninstall aplanar-libro`.
 
@@ -145,31 +147,31 @@ OCR without flattening uses OCRmyPDF with `--force-ocr` only on the image-only p
 
 **Forced OCR comparison (`--comparar-ocr N`).** At the end of the batch it picks at random (`--semilla`, default 20261119) N born-digital PDFs and, from each, `--paginas-comparacion` body pages (default 10; pages that remain in the body with 150 words or more, so never the title page, the table of contents, the references or the appendices). It renders them as images, reads them with the same OCR without flattening (the exact command is recorded) and compares them with their native text, after normalising both in the same way (NFKC for ligatures, end-of-line hyphens joined): word error rate and character similarity, in `comparacion_ocr/`, with the text of each page alongside. If a chosen PDF has no body pages, it is replaced by the next one in the random order, and the summary says how many were requested and how many were measured.
 
-**Batch with metadata (for a sampled corpus).** With `--metadatos lista.csv`, each PDF is joined to its CSV row by file name (required columns: `archivo`, `handle`, `universidad`, `carrera`, `anio`; optional: `titulo`, `estado`, `sha256`), and the `_lote.csv` and each thesis's `.json` carry those fields. No PDF is processed if it is not in the CSV, if its SHA-256 does not match the one recorded at download, or if its download is marked as failed. With `--anios 2015-2017`, neither is one whose year falls outside the range (the year lock). CSV rows without their PDF are listed. `--destino` puts everything in an exact folder.
+**Batch with metadata (for a sampled corpus).** With `--metadatos lista.csv`, each PDF is joined to its CSV row by file name (required columns: `archivo`, `handle`, `universidad`, `carrera`, `anio`; optional: `titulo`, `estado`, `sha256`), and the `_lote.csv` and each thesis's `.json` carry those fields. No PDF is processed if it is not in the CSV, if its SHA-256 does not match the one recorded at download, or if its download is marked as failed. With `--anios 2015-2017`, neither is one whose year falls outside the range (the year lock). CSV rows without their PDF are listed. If no CSV row matches any PDF in the folder (or the CSV has no rows), Feanor stops before creating the output folder and shows names from both sides; the comparison uses the exact file name, with its extension. Before converting anything, it prints how many match («coinciden N de M PDF y N de K filas»). `--destino` puts everything in an exact folder.
 
 **Body for lexical analysis (`--cuerpo`).** In batch mode, it also writes `<name>_cuerpo.md`: the text from the start up to the references heading (no references, no appendices), without table-of-contents pages and without repeated headers and footers (a line among the first 3 or last 3 of the page that appears, ignoring numbers and punctuation, in the margin of more than half of the pages; the same sentence inside the text is kept). The body is normalised with NFKC (the ligatures «ﬁ», «ﬂ» become their letters); the usual `.md` does not change and keeps the text as it is. With fewer than 3 pages of text no margin is removed. The `.json` says how many words and pages remained, how many margin lines were removed and which ones. **For manual review**, without removing them from the batch, these theses are flagged: those with visible text over full-page photos (a stamp over a scan), with fewer than 100 words per page in the body, without a references heading (the body then runs to the end), or with the references starting before the middle of the document.
 
-**Example: the lexicon calibration batch.** This is the run that prepares the calibration theses for the author's study (the folder of downloaded theses, with its `calibracion.csv`):
+**Example: a batch with metadata.** A folder of downloaded theses with its CSV, keeping only the born-digital ones and the years 2015–2017, with the body for lexical analysis and a forced OCR comparison on 20 theses:
 
 ```
-feanor "C:\path\tesis_calibracion" --solo-digitales --cuerpo --metadatos "C:\path\tesis_calibracion\calibracion.csv" --anios 2015-2017 --comparar-ocr 20 --paginas-comparacion 10 --semilla 20261119 --destino "D:\tesis calibracion"
+feanor "C:\path\tesis_calibracion" --solo-digitales --cuerpo --metadatos "C:\path\tesis_calibracion\calibracion.csv" --anios 2015-2017 --comparar-ocr 20 --paginas-comparacion 10 --semilla 20261119 --destino "D:\salida_lote"
 ```
 
 ## Verification
 
 Feanor is tested at two levels, and each one says something different:
 
-1. **Automated tests** (`tests/test_basico.py`, 43 in version 0.6.2). Each builds a small case (a PDF, a Word file, a PowerPoint, a folder of theses) with invented text, except for a few one-line fragments from the bench books (chapter titles with their folio, one sentence) that reproduce the shape of a real error. It checks that Feanor does what this README says. No copyrighted book goes into the repository: only those fragments. Tests that need Tesseract, OCRmyPDF, `python-docx` or `python-pptx` are skipped if those are not installed. Since 0.6.1 they also run on GitHub on every change, with Tesseract, OCRmyPDF and Ghostscript installed; the «tests» badge at the top shows the result of the latest run. To run them:
+1. **Automated tests** (`tests/test_basico.py`, 45 in version 0.6.3). Each builds a small case (a PDF, a Word file, a PowerPoint, a folder of theses) with invented text, except for a few one-line fragments from the bench books (chapter titles with their folio, one sentence) that reproduce the shape of a real error. It checks that Feanor does what this README says. No copyrighted book goes into the repository: only those fragments. Tests that need Tesseract, OCRmyPDF, `python-docx` or `python-pptx` are skipped if those are not installed. Since 0.6.1 they also run on GitHub on every change, with Tesseract, OCRmyPDF and Ghostscript installed; the «tests» badge at the top shows the result of the latest run. To run them:
 
    ```
    python -m pip install pytest
    python -m pytest -q
    ```
 
-2. **Measurements with real material** (books, phone photos, theses). They are in [CALIBRACION.md](CALIBRACION.md) and in the «Con qué se probó» ("what it was tested with") section of each version in [CHANGELOG.md](CHANGELOG.md), with the material, the date and what they do not guarantee.
+2. **Measurements with real material** (books, phone photos, theses). They are in [CALIBRACION.md](https://github.com/carlosravello-png/feanor/blob/main/CALIBRACION.md) and in the «Con qué se probó» ("what it was tested with") section of each version in [CHANGELOG.md](https://github.com/carlosravello-png/feanor/blob/main/CHANGELOG.md), with the material, the date and what they do not guarantee.
 
 
-[docs/VALIDATION.md](docs/VALIDATION.md) maps each measured result and each behaviour claimed in this README to the test or measurement behind it, and lists what is **not** validated.
+[docs/VALIDATION.md](https://github.com/carlosravello-png/feanor/blob/main/docs/VALIDATION.md) maps each measured result and each behaviour claimed in this README to the test or measurement behind it, and lists what is **not** validated.
 
 ## What was measured
 
@@ -183,13 +185,13 @@ Tests on 2026-11-13 with a book photographed with a phone (14 pages; the book is
 ## Known limits
 
 - **Clinical use and use with AI:** this tool does not produce verified text. Doses, reference values, drug names and any figure that will be used in a clinical decision or a publication must be checked against the original source. The same applies if the `.md` is given to an AI: the AI cannot detect an OCR error in a figure. Every `.md` carries this warning in its header.
-- **Very tight curve near the spine:** flattening may leave the first lines still slightly curved, and then a word at the end may be lost. Since version 0.2.0 Feanor measures that remaining curve and flags the page with «REVISAR A MANO» ("check by hand"). On the 14 test pages it flagged the three bad ones and gave one false alarm. The threshold is provisional: see [CALIBRACION.md](CALIBRACION.md).
+- **Very tight curve near the spine:** flattening may leave the first lines still slightly curved, and then a word at the end may be lost. Since version 0.2.0 Feanor measures that remaining curve and flags the page with «REVISAR A MANO» ("check by hand"). On the 14 test pages it flagged the three bad ones and gave one false alarm. The threshold is provisional: see [CALIBRACION.md](https://github.com/carlosravello-png/feanor/blob/main/CALIBRACION.md).
 - **Flattening that makes the page worse:** since version 0.4.3, each flattened page is compared with its original in a quick Tesseract read. If the flattened page reads fewer than 80% of the words, the original is used and the page is flagged. This is an approximation, not a guarantee: the quick read does not always match the final OCR. In the test bench, of 19 pages sent back to the original, 14 gained valid words and 5 lost some. This check costs time: in the tests, the full run took between 15% and 70% longer depending on the book.
 - **Page that does not add up:** if step 1 counted lines of text on a page and OCR produced fewer words than lines, the page is flagged. A page with no lines detected (a figure, a very bad photo) is not flagged by this rule.
 - **Errors without curvature:** a page that comes out badly because of shadow or low resolution, with straight lines, is not flagged.
 - **Pages with little text** (tables of contents, title pages, pages with figures): are not flattened.
 - **Two-page spreads:** the cut is searched near the centre, in the empty strip or in the spine shadow. Since version 0.4.4, a spread with one empty side (the blank page facing a chapter opening, a «Notas» page) is also split; before, it was flattened whole as one wide page and came out badly. Consequence: a landscape title page with the title on one side comes out as two pages, one of them blank. The empty half is not discarded: it stays in the PDF and is read. A half with a few lines stuck to the top or bottom edge may be labelled «en blanco» ("blank"), although its text is still read.
-- **Flattening that runs away:** on some pages the curve fit ends in an absurd solution and the page would come out several times larger and distorted. Since version 0.4.4 the output size is measured before the image is built; if the height or width falls outside 0.5 to 3.0 times the input, the flattening is discarded, the original is used and the page is flagged. The range comes from the test bench (see [CALIBRACION.md](CALIBRACION.md)) and the upper margin is narrow: the largest good page measured 2.62 and the smallest bad one, 3.37. It has a cost: a discarded page may read slightly worse than its giant version (in the bench, one went from 156 to 148 valid words). It does not fix every failure: of 17 bench pages that read worse when flattened, size explains 9.
+- **Flattening that runs away:** on some pages the curve fit ends in an absurd solution and the page would come out several times larger and distorted. Since version 0.4.4 the output size is measured before the image is built; if the height or width falls outside 0.5 to 3.0 times the input, the flattening is discarded, the original is used and the page is flagged. The range comes from the test bench (see [CALIBRACION.md](https://github.com/carlosravello-png/feanor/blob/main/CALIBRACION.md)) and the upper margin is narrow: the largest good page measured 2.62 and the smallest bad one, 3.37. It has a cost: a discarded page may read slightly worse than its giant version (in the bench, one went from 156 to 148 valid words). It does not fix every failure: of 17 bench pages that read worse when flattened, size explains 9.
 - **Different results on different computers:** with the same version of Feanor and of JAX, a difficult page gave different results on two machines. The computation is unstable on those pages, and it cannot be promised that two computers give exactly the same result. Each run records its environment in `libro.json` so runs can be compared.
 - **Memory:** Feanor chooses how many pages to flatten at once from the physical cores (maximum 8) and the free memory, and says so in the console. Memory per page is a cautious estimate (0.3 GB plus 0.05 GB per megapixel of the largest page, if it exceeded the maximum allowed size); on a computer with little RAM it will be slower, it should not hang. It requires `psutil`; without it, it uses a fixed value and says so.
 - **Pages rotated by 90°** (a table printed sideways): they are detected and flagged, but not straightened well. OCRmyPDF is asked to rotate them, and in the test it was not confident enough to do so. They must be read from the image.
@@ -232,15 +234,15 @@ Author: Carlos Eduardo Ravello Joo ([ORCID 0009-0007-5631-7436](https://orcid.or
 
 ## How to cite
 
-GitHub shows the «Cite this repository» button from [CITATION.cff](CITATION.cff). In text:
+GitHub shows the «Cite this repository» button from [CITATION.cff](https://github.com/carlosravello-png/feanor/blob/main/CITATION.cff). In text:
 
-> Ravello Joo, C. E. (2026). *Feanor* (Version 0.6.2) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.24522079
+> Ravello Joo, C. E. (2026). *Feanor* [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.24522078
 
-To cite all versions: [10.5281/zenodo.24522078](https://doi.org/10.5281/zenodo.24522078). Permanent archive of the v0.6.2 code in Software Heritage: [swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176](https://archive.softwareheritage.org/swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176).
+That DOI covers all versions and always opens the latest one. Cite the version you used: each version has its own DOI, on its Zenodo record and in [CITATION.cff](https://github.com/carlosravello-png/feanor/blob/main/CITATION.cff). Permanent archive of the code in [Software Heritage](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/carlosravello-png/feanor).
 
 ## Licence
 
-Feanor's code is MIT: see [LICENSE](LICENSE). Dependencies keep their own licences:
+Feanor's code is MIT: see [LICENSE](https://github.com/carlosravello-png/feanor/blob/main/LICENSE). Dependencies keep their own licences:
 
 | Dependency | Licence | How Feanor uses it |
 |---|---|---|
