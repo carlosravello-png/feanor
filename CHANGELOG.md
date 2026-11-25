@@ -10,6 +10,28 @@ entry lists what changed, what was deliberately left unchanged, what it was
 tested with and its declared limits. A summary in English is in the
 [README](README.md) and in [docs/VALIDATION.md](docs/VALIDATION.md).*
 
+## 0.6.1 · CI público y ficha para Zenodo (24/11/2026)
+
+**Qué cambió**
+- `.github/workflows/tests.yml`: GitHub corre las 43 pruebas en cada cambio,
+  con Tesseract (modelo `spa`), OCRmyPDF y Ghostscript instalados, para que no
+  se salte ninguna. El badge «tests» del README muestra la última corrida.
+- `.zenodo.json`: la ficha que Zenodo lee al archivar cada Release (autor con
+  ORCID, afiliación Zoovet Travel, licencia MIT, palabras clave).
+- Badges de las pruebas y de la licencia en los dos README.
+
+**Qué quedó igual a propósito**
+- Ningún archivo del paquete cambia, salvo `__version__`: la 0.6.1 da el mismo
+  resultado que la 0.6.0.
+
+**Con qué se probó**
+- Las 43 pruebas en Linux, sin ninguna saltada.
+- `tests.yml` y `.zenodo.json` se leen sin errores (YAML y JSON).
+
+**Límites declarados**
+- La primera corrida del CI se ve después del push; hasta entonces el badge no
+  tiene resultado.
+
 ## 0.6.0 · Nombre nuevo del paquete y documentación bilingüe (24/11/2026)
 
 **Qué cambió**

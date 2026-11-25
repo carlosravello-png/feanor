@@ -2,11 +2,11 @@
 
 **English** · [Español](VALIDACION.md)
 
-Version 0.6.0 (2026-11-24). This document maps each measured result and each behaviour claimed in the [README](../README.md) to what supports it. Parameters (thresholds, defaults, maximums) are design decisions: the README states them, and those that come from a measurement are listed below with it. What has no support is under «What is not validated».
+Version 0.6.1 (2026-11-24). This document maps each measured result and each behaviour claimed in the [README](../README.md) to what supports it. Parameters (thresholds, defaults, maximums) are design decisions: the README states them, and those that come from a measurement are listed below with it. What has no support is under «What is not validated».
 
 **Types of support**
 
-- **Test:** an automated test in `tests/test_basico.py`. It builds a small case with invented text (except for a few one-line fragments from the bench books, which reproduce the shape of a real error) and fails if Feanor stops doing what is claimed. Run with `python -m pytest -q`; in 0.6.0 there are 43 and all 43 pass, none skipped, on Linux (development environment) and on Windows (the author's PC, 2026-11-24). On Windows the author runs them before each commit. A test shows that the rule does what it says in that case, not that it is right on all real material.
+- **Test:** an automated test in `tests/test_basico.py`. It builds a small case with invented text (except for a few one-line fragments from the bench books, which reproduce the shape of a real error) and fails if Feanor stops doing what is claimed. Run with `python -m pytest -q`; there are 43. With 0.6.0 all 43 passed, none skipped, on Linux (development environment) and on Windows (the author's PC, 2026-11-24). Since 0.6.1 they also run on GitHub on every change (`.github/workflows/tests.yml`); the result of each run is public in the repository's Actions tab and in the README's «tests» badge. A test shows that the rule does what it says in that case, not that it is right on all real material.
 - **Measurement:** a measurement with real material (books, phone photos, theses), with its date and sample, in [CALIBRACION.md](../CALIBRACION.md) or in the «Con qué se probó» ("what it was tested with") section of the version in the [CHANGELOG](../CHANGELOG.md) (both in Spanish). It describes that sample; it is not a general error rate.
 
 Test names are in Spanish, as in the code.

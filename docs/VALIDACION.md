@@ -2,11 +2,11 @@
 
 [English](VALIDATION.md) · **Español**
 
-Versión 0.6.0 (24/11/2026). Este documento cruza cada resultado medido y cada comportamiento que afirma el [README](../README.es.md) con lo que lo respalda. Los parámetros (umbrales, valores por defecto, máximos) son decisiones de diseño: el README dice cuáles son, y los que salen de una medición están abajo con ella. Lo que no tiene respaldo está en «Lo que no está validado».
+Versión 0.6.1 (24/11/2026). Este documento cruza cada resultado medido y cada comportamiento que afirma el [README](../README.es.md) con lo que lo respalda. Los parámetros (umbrales, valores por defecto, máximos) son decisiones de diseño: el README dice cuáles son, y los que salen de una medición están abajo con ella. Lo que no tiene respaldo está en «Lo que no está validado».
 
 **Tipos de respaldo**
 
-- **Prueba:** una prueba automática de `tests/test_basico.py`. Arma un caso pequeño con texto inventado (salvo algunos fragmentos de una línea de los libros del banco, que reproducen la forma de un error real) y falla si Feanor deja de hacer lo que se afirma. Se corre con `python -m pytest -q`; en la 0.6.0 son 43 y pasan las 43, sin ninguna saltada, en Linux (entorno de desarrollo) y en Windows (la PC del autor, 24/11/2026). En Windows las corre el autor antes de cada commit. Una prueba muestra que la regla hace lo que dice en ese caso, no que acierte en todo material real.
+- **Prueba:** una prueba automática de `tests/test_basico.py`. Arma un caso pequeño con texto inventado (salvo algunos fragmentos de una línea de los libros del banco, que reproducen la forma de un error real) y falla si Feanor deja de hacer lo que se afirma. Se corre con `python -m pytest -q`; son 43. Con la 0.6.0 pasaron las 43, sin ninguna saltada, en Linux (entorno de desarrollo) y en Windows (la PC del autor, 24/11/2026). Desde la 0.6.1 corren además en GitHub en cada cambio (`.github/workflows/tests.yml`); el resultado de cada corrida es público en la pestaña Actions del repositorio y en el badge «tests» del README. Una prueba muestra que la regla hace lo que dice en ese caso, no que acierte en todo material real.
 - **Medición:** una medición con material real (libros, fotos de celular, tesis), con su fecha y su muestra, en [CALIBRACION.md](../CALIBRACION.md) o en la sección «Con qué se probó» de la versión en el [CHANGELOG](../CHANGELOG.md). Describe esa muestra; no es una tasa de error general.
 
 ## Afirmaciones y su respaldo

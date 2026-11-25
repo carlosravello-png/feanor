@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Tesseract con el modelo de español y Ghostscript: sin ellos, las
+      # pruebas de OCR se saltarían y el badge no diría lo que dice el README.
+      - name: Tesseract (spa) y Ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-spa ghostscript
+
+      - name: Feanor, OCRmyPDF y pytest
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . ocrmypdf pytest
+
+      - name: Versiones
+        run: |
+          tesseract --version | head -1
+          ocrmypdf --version
+          gs --version
+          python -c "import feanor_el_aplasta_libros as f; print('feanor', f.__version__)"
+
+      # -rs lista las pruebas saltadas; ninguna debería saltarse aquí.
+      - name: Pruebas
+        run: python -m pytest -q -rs

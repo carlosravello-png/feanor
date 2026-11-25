@@ -2,9 +2,11 @@
 
 [English](README.md) · **Español**
 
+[![tests](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml/badge.svg)](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml) [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
+
 Feanor pasa a Markdown libros escaneados o fotografiados, tesis en PDF, documentos de Word y presentaciones de PowerPoint en español, para leerlos, buscarlos o dárselos a una IA. En las fotos de libros endereza las páginas que se curvan hacia el lomo antes de leerlas.
 
-- **Versión:** 0.6.0 (24/11/2026). Historial en [CHANGELOG.md](CHANGELOG.md).
+- **Versión:** 0.6.1 (24/11/2026). Historial en [CHANGELOG.md](CHANGELOG.md).
 - **Nombre:** la herramienta se llama **Feanor**; el paquete de Python, `feanor_el_aplasta_libros` (en pip, `feanor-el-aplasta-libros`). Hasta la 0.5.5 se llamó `aplanar-libro`.
 - **Estado:** software de investigación, en uso en un estudio propio de tesis en español. Lo que garantiza y lo que no está en [Verificación](#verificación) y en [Límites conocidos](#límites-conocidos).
 - **Lo más importante:** Feanor no produce texto verificado. Las cifras, las dosis, las citas y los nombres se comprueban siempre en el original.
@@ -157,7 +159,7 @@ feanor "C:\ruta\tesis_calibracion" --solo-digitales --cuerpo --metadatos "C:\rut
 
 Feanor se prueba en dos niveles, y cada uno dice algo distinto:
 
-1. **Pruebas automáticas** (`tests/test_basico.py`, 43 en la versión 0.6.0). Cada una arma un caso pequeño (un PDF, un Word, un PowerPoint, una carpeta de tesis) con texto inventado, salvo algunos fragmentos de una línea de los libros del banco (títulos de capítulo con su folio, una frase), que reproducen la forma de un error real. Comprueba que Feanor hace lo que este README dice. Ningún libro con derechos de autor entra en el repositorio: solo esos fragmentos. Las que necesitan Tesseract, OCRmyPDF, `python-docx` o `python-pptx` se saltan si no están instalados. Para correrlas:
+1. **Pruebas automáticas** (`tests/test_basico.py`, 43 en la versión 0.6.1). Cada una arma un caso pequeño (un PDF, un Word, un PowerPoint, una carpeta de tesis) con texto inventado, salvo algunos fragmentos de una línea de los libros del banco (títulos de capítulo con su folio, una frase), que reproducen la forma de un error real. Comprueba que Feanor hace lo que este README dice. Ningún libro con derechos de autor entra en el repositorio: solo esos fragmentos. Las que necesitan Tesseract, OCRmyPDF, `python-docx` o `python-pptx` se saltan si no están instalados. Desde la 0.6.1 corren también en GitHub en cada cambio, con Tesseract, OCRmyPDF y Ghostscript instalados; el badge «tests» de arriba muestra el resultado de la última corrida. Para correrlas:
 
    ```
    python -m pip install pytest
@@ -232,7 +234,7 @@ Autor: Carlos Eduardo Ravello Joo ([ORCID 0009-0007-5631-7436](https://orcid.org
 
 GitHub muestra el botón «Cite this repository» a partir de [CITATION.cff](CITATION.cff). En texto:
 
-> Ravello Joo, C. E. (2026). *Feanor* (versión 0.6.0) [Software]. https://github.com/carlosravello-png/feanor
+> Ravello Joo, C. E. (2026). *Feanor* (versión 0.6.1) [Software]. https://github.com/carlosravello-png/feanor
 
 ## Licencia
 

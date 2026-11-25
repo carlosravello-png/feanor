@@ -12,7 +12,7 @@ authors:
   - family-names: "Ravello Joo"
     given-names: "Carlos Eduardo"
     orcid: "https://orcid.org/0009-0007-5631-7436"
-version: "0.6.0"
+version: "0.6.1"
 date-released: "2026-11-24"
 license: MIT
 repository-code: "https://github.com/carlosravello-png/feanor"
