@@ -215,6 +215,7 @@ def _ruta_ocr_directo(pdf: Path, md: Path, registro: dict, inicio: float, pagina
                      if despues[i - 1].get_text("text").split() == antes[i - 1].get_text("text").split()]
         originales = {i: antes[i - 1].get_text("text") for i in range(1, len(antes) + 1) if i not in pedidas}
         alteradas = [i for i, t in originales.items() if despues[i - 1].get_text("text") != t]
+        solo_espacios = [i for i in alteradas if despues[i - 1].get_text("text").split() == originales[i].split()]
     tipos = [("ocr_feanor" if p["pagina"] not in no_leidas else "escaneada") if p["tipo"] == "escaneada"
              else p["tipo"] for p in paginas_pdf]
     resumen = pdf_a_markdown(ocr, md, None, tipos=tipos, nombre=pdf.name,
@@ -225,7 +226,9 @@ def _ruta_ocr_directo(pdf: Path, md: Path, registro: dict, inicio: float, pagina
                      "ruta": "ocr_directo",
                      "ocr": {"comando": [Path(comando[0]).name] + comando[1:-2] + ["<entrada>", "<salida>"],
                              "paginas_pedidas": pedidas, "paginas_leidas": grupos.get("ocr_feanor", []),
-                             "paginas_no_leidas": no_leidas, "paginas_alteradas": alteradas},
+                             "paginas_no_leidas": no_leidas, "paginas_alteradas": alteradas,
+                             "paginas_alteradas_solo_espacios": solo_espacios,
+                             "paginas_alteradas_palabras": [i for i in alteradas if i not in solo_espacios]},
                      "segundos": {"total": round(time.perf_counter() - inicio, 1)},
                      "resumen": {k: resumen[k] for k in ("paginas", "sin_texto", "indices", "a_revisar")},
                      "paginas_md": resumen["detalle"]})
@@ -276,10 +279,12 @@ def main(argv: list[str] | None = None) -> None:
     a = p.parse_args(argv)
 
     if a.pdf.is_dir():
+        import sys
         from .lote import procesar_carpeta
         procesar_carpeta(a.pdf, a.salida, a.idioma, a.solo_digitales, a.metadatos, a.anios, a.destino,
                          a.cuerpo, auto=a.auto, comparar=a.comparar_ocr,
-                         paginas_comparacion=a.paginas_comparacion, semilla=a.semilla)
+                         paginas_comparacion=a.paginas_comparacion, semilla=a.semilla,
+                         linea_de_comandos=["aplanar_libro"] + list(sys.argv[1:] if argv is None else argv))
         return
     extension = a.pdf.suffix.lower()
     if extension == ".ppt":

@@ -5,6 +5,75 @@ Las mediciones del banco y los umbrales de las versiones 0.2.0 a 0.4.5 están
 en [CALIBRACION.md](CALIBRACION.md). Las versiones anteriores a 0.4.6 están en
 el historial de git, cada una con su etiqueta (`v0.1.0` a `v0.4.5`).
 
+## 0.5.5 · Referencias más robustas, OCR con --output-type pdf, comando del lote registrado (20/11/2026)
+
+**Qué cambió**
+- Referencias (`referencias.py`), por lo visto en las 80 tesis de calibración:
+  - si hay varios títulos, se toma el último que esté antes del primer título
+    de anexos de una página posterior a la del primero (antes, el último a
+    secas): en la UCV se anexa un «artículo científico» con sus propias
+    referencias, y un programa anexado puede traer su bibliografía;
+  - erratas del autor: «Referencias» seguido de cualquier palabra que empiece
+    por «bibliog» («BIBLIOGÁFICAS»), «Bibliog…» con cualquier terminación
+    («BIBLIOGRÁFIA», «BIBLIOGRAFÍCAS»), punto final («BIBLIOGRAFÍA.») y, con
+    numeración de capítulo delante, el singular («VII. REFERENCIA
+    BIBLIOGRAFICA»); la línea se compara en NFC (la «Í» puede venir con tilde
+    combinante);
+  - es índice también una página encabezada «Índice», «Esquema», «Contenido»,
+    «Tabla de contenido» o «Sumario», aunque no tenga números;
+  - en una bibliografía con el año en su propia línea, los años 1900–2099 no
+    cuentan como números de página (antes la página parecía un índice y se
+    saltaba);
+  - un título o un «Anexos» cuenta solo si empieza con mayúscula: una línea de
+    prosa cortada en «referencias bibliográficas» no es la sección;
+  - «Referencia bibliográfica» en singular sin numeración no cuenta: es la
+    página que UNMSM agrega a cada tesis para indicar cómo citarla.
+- OCR del lote con `--output-type pdf` (`leer.ocr_paginas`, parámetro
+  `tipo_salida`): con el valor por defecto («auto», PDF/A con Ghostscript), la
+  reescritura cambiaba el texto de páginas no pedidas. La comprobación sigue,
+  y ahora separa las páginas que cambiaron solo espacios de las que cambiaron
+  palabras (`ocr.paginas_alteradas_solo_espacios`, `…_palabras`), con una
+  alerta para cada caso.
+- `_lote.json` guarda la línea de comandos (`linea_de_comandos`).
+- Script nuevo `banco/diagnostico_output_type.py`: pasa cada PDF por los dos
+  modos y cuenta las páginas alteradas, sin escribir junto a los PDF.
+
+**Qué quedó igual a propósito**
+- La conversión, la clasificación por página y sus umbrales, el cuerpo, la
+  limpieza y el resto del lote.
+
+**Con qué se probó**
+- Las 80 tesis de calibración (texto crudo de sus `.json` de la 0.5.4),
+  regla vieja contra nueva: el corte cambia en 16, todas correcciones (8 de la
+  UCV que tomaban las referencias del artículo anexado, 1 de UNMSM que tomaba
+  las de un programa anexado, 3 con errata en el título, 4 que quedaban sin
+  título por el punto final, el singular o los años en su línea). Sin título:
+  de 7 a 1. Marcadas «antes de la mitad»: 0. En las 16, la sección empieza con
+  referencias reales y termina antes de «Anexos».
+- En el camino hubo tres intentos que rompían tesis y se descartaron: tomar el
+  límite de anexos en la misma página (4 índices sin detectar), aceptar el
+  singular sin numeración (6 de UNMSM) y aceptar títulos en minúscula (1).
+- Pruebas automáticas: 43, tres nuevas (casos de referencias de la
+  calibración; OCR con `--output-type pdf` sin páginas alteradas en un PDF
+  mixto; comando en `_lote.json` y alerta separada). De las anteriores cambia
+  una sola aserción: en la prueba de referencias de la 0.5.3, la página
+  encabezada «ÍNDICE» ya no aporta candidato (de 2 a 1); el resultado (página
+  3) es el mismo.
+- `--output-type`, en este entorno sin Ghostscript: la tesis 4309 no altera
+  ninguna página en los dos modos (en la PC del autor, con Ghostscript y
+  «auto», alteró 4, solo espacios); la 7659 altera las mismas 5 en los dos
+  modos (la viñeta `U+F0B7` de Times New Roman desaparece al reescribir).
+
+**Límites declarados**
+- `--output-type pdf` no evita todas las alteraciones (7659): la comprobación
+  de páginas alteradas sigue siendo necesaria. La medición que decide es el
+  diagnóstico en la PC del autor, con Ghostscript.
+- Una bibliografía numerada con el número de cada referencia en su propia
+  línea sigue pareciendo un índice (1 de 80, la 12727_2897).
+- El cambio de regla de referencias cambia el corte respecto de la 0.5.4 en
+  PDF con anexos que traen sus propias referencias; un PDF cuyas referencias
+  vienen después de los anexos tomaría ahora las del primer bloque.
+
 ## 0.5.4 · Lote automático con OCR sin aplanar y comparación forzada de OCR (19/11/2026)
 
 **Qué cambió**

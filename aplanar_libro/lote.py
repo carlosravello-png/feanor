@@ -129,10 +129,21 @@ def revisar(registro: dict) -> list[str]:
                      for p in registro.get("paginas_pdf", []))
     if sobre_foto:
         motivos.append(f"{sobre_foto} páginas con texto visible sobre una foto de página completa (¿sello sobre un escaneo?)")
-    alteradas = (registro.get("ocr") or {}).get("paginas_alteradas") or []
+    ocr = registro.get("ocr") or {}
+    alteradas = ocr.get("paginas_alteradas") or []
     if alteradas:
-        motivos.append(f"{len(alteradas)} páginas de texto nativo cambiaron al reescribir el PDF para el OCR; "
-                       f"se usó su texto del original: {alteradas}")
+        espacios = ocr.get("paginas_alteradas_solo_espacios")
+        palabras = ocr.get("paginas_alteradas_palabras")
+        if espacios is None:                       # registro de la 0.5.4, sin el desglose
+            motivos.append(f"{len(alteradas)} páginas de texto nativo cambiaron al reescribir el PDF para el OCR; "
+                           f"se usó su texto del original: {alteradas}")
+        else:
+            if palabras:
+                motivos.append(f"{len(palabras)} páginas de texto nativo cambiaron al reescribir el PDF para el OCR "
+                               f"(cambian palabras); se usó su texto del original: {palabras}")
+            if espacios:
+                motivos.append(f"{len(espacios)} páginas de texto nativo cambiaron al reescribir el PDF para el OCR "
+                               f"(solo espacios); se usó su texto del original: {espacios}")
     no_leidas = (registro.get("ocr") or {}).get("paginas_no_leidas") or []
     if no_leidas:
         motivos.append(f"{len(no_leidas)} páginas de imagen que el OCR no pudo leer: {no_leidas}")
@@ -196,7 +207,8 @@ def procesar_carpeta(carpeta: Path, salida: Path | None, idioma: str = "spa",
                      solo_digitales: bool = False, metadatos: Path | None = None,
                      anios: str | None = None, destino: Path | None = None,
                      con_cuerpo: bool = False, auto: bool = False, comparar: int = 0,
-                     paginas_comparacion: int = 10, semilla: int = 20261119) -> list[dict]:
+                     paginas_comparacion: int = 10, semilla: int = 20261119,
+                     linea_de_comandos: list[str] | None = None) -> list[dict]:
     """`destino`: carpeta exacta del lote (sin crear una subcarpeta con el nombre
     de la carpeta de entrada); si se da, `salida` no se usa.
 
@@ -347,7 +359,7 @@ def procesar_carpeta(carpeta: Path, salida: Path | None, idioma: str = "spa",
     extra = {"metadatos": str(metadatos.resolve()) if metadatos else None,
              "candado_anios": list(rango) if rango else None,
              "filas_csv_sin_pdf": sorted(set(tabla) - {p.name for p in archivos}) if tabla is not None else [],
-             "automatico": automatico, "ocr": con_ocr}
+             "automatico": automatico, "ocr": con_ocr, "linea_de_comandos": linea_de_comandos}
     if comparar:
         from .comparacion import comparar_ocr
         extra["comparacion_ocr"] = comparar_ocr(base, filas, comparar, paginas_comparacion, semilla, idioma)

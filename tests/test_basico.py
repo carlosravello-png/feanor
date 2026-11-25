@@ -560,7 +560,8 @@ def test_referencias_por_titulo():
     textos = ["ÍNDICE\nREFERENCIAS\n45", "cuerpo del trabajo",
               "VII. REFERENCIAS BIBLIOGRÁFICAS\nPérez (2021).\nANEXOS\nInstrumento", "Anexo 2"]
     r = buscar_referencias(textos)
-    assert r["pagina"] == 3 and r["candidatos"] == 2 and r["termina_antes_de"]["pagina"] == 3
+    # 0.5.5: la página que se encabeza «ÍNDICE» ya no aporta candidato (antes eran 2).
+    assert r["pagina"] == 3 and r["candidatos"] == 1 and r["termina_antes_de"]["pagina"] == 3
     assert texto_de_referencias(textos, r) == [(3, "VII. REFERENCIAS BIBLIOGRÁFICAS\nPérez (2021).")]
     assert buscar_referencias(["Bibliografía\nAutor (2020)."])["termina_antes_de"] is None
     assert buscar_referencias(["las referencias citadas en el texto"]) is None   # en medio de una frase no
@@ -839,3 +840,86 @@ def test_auto_pagina_nativa_alterada_por_el_ocr_se_toma_del_original(tmp_path, m
     assert "ALTERADO" not in md
     fila = next(csv.DictReader(open(base / "_lote.csv", encoding="utf-8-sig")))
     assert "cambiaron al reescribir el PDF" in fila["revisar"]
+
+
+def test_referencias_casos_de_la_calibracion():
+    """Casos reales de la calibración (texto inventado, misma forma): artículo
+    anexado con sus referencias (UCV), índice sin números con errata en el
+    título real, página de UNMSM que dice cómo citar la tesis, años en su propia
+    línea, prosa cortada en «referencias bibliográficas» y tilde combinante."""
+    from aplanar_libro.referencias import buscar_referencias
+    cuerpo = "El estudio analiza la variable en los estudiantes de la muestra."
+    # UCV: las referencias de la tesis, no las del artículo anexado
+    ucv = ["ÍNDICE\nVII. Referencias bibliográficas\nVIII. Anexos", cuerpo,
+           "VII. Referencias bibliográficas\nPérez, J. (2015). Título.", "VIII. Anexos\nAnexo 1: Matriz",
+           "Anexo 4: Artículo científico\nResumen del artículo", "REFERENCIAS\nOtro, A. (2014). Título."]
+    r = buscar_referencias(ucv)
+    assert r["pagina"] == 3 and r["regla"] == "último título antes del primer anexo"
+    assert r["termina_antes_de"]["pagina"] == 4
+    # índice sin números («ESQUEMA») y errata en el título real (falta la r)
+    esquema = ["2\nESQUEMA\nIntroducción\nCONCLUSIONES\nREFERENCIAS BIBLIOGRÁFICAS\nANEXOS", cuerpo, cuerpo,
+               "REFERENCIAS BIBLIOGÁFICAS\nBadiou, A. (2014). Elogio del amor."]
+    assert buscar_referencias(esquema)["pagina"] == 4
+    # UNMSM: la página de cómo citar no es la sección; el singular numerado sí
+    unmsm = ["Referencia bibliográfica\nAlarcón, F. (2015). Estudio. [Tesis de maestría].", cuerpo,
+             "VII. REFERENCIA BIBLIOGRAFICA\nAcosta, D. (2010). Título."]
+    r = buscar_referencias(unmsm)
+    assert r["pagina"] == 3 and r["candidatos"] == 1
+    # años en su línea: la página no es un índice aunque markdown.es_indice lo diga
+    anios = ["BIBLIOGRAFÍA.\nABAD, Samuel\n2014\nTítulo uno\nABANTO, Manuel\n2000\nTítulo dos\nPÉREZ, Ana\n2010\nTítulo tres"]
+    assert buscar_referencias([cuerpo, cuerpo] + anios, indices=[3])["pagina"] == 3
+    # prosa cortada en minúscula no es título; tilde combinante sí
+    prosa = ["Presentamos la tesis con su marco teórico y\nreferencias bibliográficas\nque esperamos se ajuste.", cuerpo]
+    assert buscar_referencias(prosa) is None
+    assert buscar_referencias([cuerpo, "BIBLIOGRAFÍA\nAutor (2010)."])["pagina"] == 2
+
+
+def test_auto_ocr_con_salida_pdf_sin_paginas_alteradas(tmp_path):
+    """Desde la 0.5.5 el OCR del lote usa --output-type pdf; en un PDF mixto, las
+    páginas nativas salen con el texto idéntico."""
+    import json
+    if not _hay_ocr():
+        pytest.skip("sin OCRmyPDF o Tesseract")
+    from aplanar_libro.cli import main
+    carpeta = tmp_path / "c"
+    carpeta.mkdir()
+    _pdf_de_prueba(carpeta / "mixto.pdf", ["escaneada_con_sello", "digital", "digital"])
+    main([str(carpeta), "--auto", "--salida", str(tmp_path / "s")])
+    r = json.loads((tmp_path / "s" / "c" / "mixto" / "mixto.json").read_text(encoding="utf-8"))
+    comando = r["ocr"]["comando"]
+    assert comando[comando.index("--output-type") + 1] == "pdf"
+    assert r["ocr"]["paginas_alteradas"] == [] and r["ocr"]["paginas_leidas"] == [1]
+
+
+def test_lote_guarda_comando_y_separa_alertas(tmp_path, monkeypatch):
+    """_lote.json guarda la línea de comandos; la alerta de páginas alteradas
+    separa «solo espacios» de «cambian palabras» (OCRmyPDF simulado)."""
+    import csv
+    import json
+    import aplanar_libro.leer as leer
+    from aplanar_libro.cli import main
+
+    def ocr_falso(entrada, salida, paginas, idioma="spa", tipo_salida="pdf"):
+        doc = fitz.open(entrada)
+        for i in paginas:
+            doc[i - 1].insert_text((50, 200), "LEIDO POR OCR")
+        texto = doc[1].get_text("text")                     # página 2: mismo texto, otros espacios
+        doc[1].add_redact_annot(doc[1].rect); doc[1].apply_redactions()
+        doc[1].insert_text((50, 100), "  ".join(texto.split()))
+        doc[2].insert_text((50, 300), "PALABRA NUEVA")      # página 3: cambia una palabra
+        doc.save(salida)
+        return ["ocrmypdf", "--output-type", tipo_salida, str(entrada), str(salida)]
+
+    monkeypatch.setattr(leer, "ocr_paginas", ocr_falso)
+    carpeta = tmp_path / "c"
+    carpeta.mkdir()
+    _pdf_de_prueba(carpeta / "mixto.pdf", ["escaneada", "digital", "digital"])
+    main([str(carpeta), "--auto", "--salida", str(tmp_path / "s")])
+    base = tmp_path / "s" / "c"
+    r = json.loads((base / "mixto" / "mixto.json").read_text(encoding="utf-8"))
+    assert r["ocr"]["paginas_alteradas_solo_espacios"] == [2] and r["ocr"]["paginas_alteradas_palabras"] == [3]
+    fila = next(csv.DictReader(open(base / "_lote.csv", encoding="utf-8-sig")))
+    assert "(cambian palabras); se usó su texto del original: [3]" in fila["revisar"]
+    assert "(solo espacios); se usó su texto del original: [2]" in fila["revisar"]
+    lote = json.loads((base / "_lote.json").read_text(encoding="utf-8"))
+    assert lote["linea_de_comandos"] == ["aplanar_libro", str(carpeta), "--auto", "--salida", str(tmp_path / "s")]
