@@ -13,9 +13,20 @@ authors:
     given-names: "Carlos Eduardo"
     orcid: "https://orcid.org/0009-0007-5631-7436"
 version: "0.6.2"
-date-released: "2026-11-24"
+doi: "10.5281/zenodo.24522079"
+date-released: "2026-11-25"
 license: MIT
 repository-code: "https://github.com/carlosravello-png/feanor"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24522078"
+    description: "All versions (concept DOI)"
+  - type: doi
+    value: "10.5281/zenodo.24522079"
+    description: "Version 0.6.2"
+  - type: swh
+    value: "swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176"
+    description: "Software Heritage archive of the v0.6.2 code"
 keywords:
   - OCR
   - PDF

@@ -2,7 +2,7 @@
 
 [English](README.md) · **Español**
 
-[![tests](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml/badge.svg)](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml) [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
+[![tests](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml/badge.svg)](https://github.com/carlosravello-png/feanor/actions/workflows/tests.yml) [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24522078.svg)](https://doi.org/10.5281/zenodo.24522078) [![Software Heritage](https://archive.softwareheritage.org/badge/origin/https://github.com/carlosravello-png/feanor/)](https://archive.softwareheritage.org/swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176)
 
 Feanor pasa a Markdown libros escaneados o fotografiados, tesis en PDF, documentos de Word y presentaciones de PowerPoint en español, para leerlos, buscarlos o dárselos a una IA. En las fotos de libros endereza las páginas que se curvan hacia el lomo antes de leerlas.
 
@@ -234,7 +234,9 @@ Autor: Carlos Eduardo Ravello Joo ([ORCID 0009-0007-5631-7436](https://orcid.org
 
 GitHub muestra el botón «Cite this repository» a partir de [CITATION.cff](CITATION.cff). En texto:
 
-> Ravello Joo, C. E. (2026). *Feanor* (versión 0.6.2) [Software]. https://github.com/carlosravello-png/feanor
+> Ravello Joo, C. E. (2026). *Feanor* (versión 0.6.2) [Software]. Zenodo. https://doi.org/10.5281/zenodo.24522079
+
+Para citar todas las versiones: [10.5281/zenodo.24522078](https://doi.org/10.5281/zenodo.24522078). Archivo permanente del código de la v0.6.2 en Software Heritage: [swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176](https://archive.softwareheritage.org/swh:1:rev:80263c049ce1dbb60eb7e22b61fd408f29839176).
 
 ## Licencia
 
