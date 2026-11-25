@@ -353,7 +353,10 @@ def test_powerpoint_numero_suelto_llega_marcado(tmp_path):
     prs.save(entrada)
     pptx_a_markdown(entrada, salida)
     lineas = salida.read_text(encoding="utf-8").splitlines()
-    assert "[?] 47" in lineas
+    # Lo que se prueba es que el renglón llega marcado y conserva el número, no
+    # el texto exacto que lee Tesseract: con OpenCV 5.1 la lámina se dibuja un
+    # poco distinto y Tesseract lee «47]» (CI del 24/11/2026); con 5.0, «47».
+    assert any(l.startswith("[?] 47") for l in lineas), lineas
     assert "CONFIDENCIALIDAD DEL PACIENTE" in lineas          # el texto normal va sin marca
 
 

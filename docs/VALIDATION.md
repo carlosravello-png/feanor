@@ -2,7 +2,7 @@
 
 **English** · [Español](VALIDACION.md)
 
-Version 0.6.1 (2026-11-24). This document maps each measured result and each behaviour claimed in the [README](../README.md) to what supports it. Parameters (thresholds, defaults, maximums) are design decisions: the README states them, and those that come from a measurement are listed below with it. What has no support is under «What is not validated».
+Version 0.6.2 (2026-11-24). This document maps each measured result and each behaviour claimed in the [README](../README.md) to what supports it. Parameters (thresholds, defaults, maximums) are design decisions: the README states them, and those that come from a measurement are listed below with it. What has no support is under «What is not validated».
 
 **Types of support**
 

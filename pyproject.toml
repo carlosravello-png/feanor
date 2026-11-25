@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "feanor-el-aplasta-libros"
-version = "0.6.1"
+version = "0.6.2"
 description = "Feanor: pasa PDF, Word y PowerPoint a Markdown; aplana páginas curvas de libros escaneados y pasa OCR en español."
 readme = "README.md"
 license = "MIT"

@@ -10,6 +10,30 @@ entry lists what changed, what was deliberately left unchanged, what it was
 tested with and its declared limits. A summary in English is in the
 [README](README.md) and in [docs/VALIDATION.md](docs/VALIDATION.md).*
 
+## 0.6.2 · Una prueba de PowerPoint deja de depender del texto exacto del OCR (24/11/2026)
+
+**Qué cambió**
+- `test_powerpoint_numero_suelto_llega_marcado`: comprobaba que el renglón
+  fuera exactamente «[?] 47»; ahora comprueba que empiece por «[?] 47». La
+  primera corrida del CI (0.6.1) falló ahí: el CI instala OpenCV 5.1.0, que
+  dibuja la lámina de prueba un poco distinto que la 5.0.0 (otra huella de la
+  imagen), y Tesseract lee «47]». Feanor hizo lo que la prueba dice verificar:
+  el renglón llegó marcado con «[?]» y no se borró.
+
+**Qué quedó igual a propósito**
+- Ningún archivo del paquete cambia, salvo `__version__`. La prueba sigue
+  exigiendo el número y la marca; solo tolera ruido de OCR después del número.
+
+**Con qué se probó**
+- Las 43 pruebas, sin ninguna saltada, en dos entornos: OpenCV 5.0.0 (el del
+  desarrollo y la PC del autor) y una instalación limpia en Python 3.12 con
+  OpenCV 5.1.0, la misma que hace el CI, donde la 0.6.1 fallaba.
+
+**Límites declarados**
+- El texto que lee Tesseract en una imagen puede cambiar con la versión de
+  OpenCV, aunque la imagen sea «la misma»: es otra razón para verificar en el
+  original lo leído por OCR.
+
 ## 0.6.1 · CI público y ficha para Zenodo (24/11/2026)
 
 **Qué cambió**

@@ -6,7 +6,7 @@
 
 Feanor turns scanned or photographed books, thesis PDFs, Word documents and PowerPoint presentations in Spanish into Markdown, so they can be read, searched or handed to an AI. With photos of books, it straightens pages that curve towards the spine before reading them.
 
-- **Version:** 0.6.1 (2026-11-24). History in [CHANGELOG.md](CHANGELOG.md) (in Spanish).
+- **Version:** 0.6.2 (2026-11-24). History in [CHANGELOG.md](CHANGELOG.md) (in Spanish).
 - **Name:** the tool is called **Feanor**; the Python package is `feanor_el_aplasta_libros` (on pip, `feanor-el-aplasta-libros`; the name means "Feanor, the book flattener"). Up to 0.5.5 it was called `aplanar-libro`.
 - **Status:** research software, in use in the author's own study of Spanish-language theses. What it guarantees and what it does not is under [Verification](#verification) and [Known limits](#known-limits).
 - **Most important:** Feanor does not produce verified text. Figures, doses, quotations and names must always be checked against the original.
@@ -159,7 +159,7 @@ feanor "C:\path\tesis_calibracion" --solo-digitales --cuerpo --metadatos "C:\pat
 
 Feanor is tested at two levels, and each one says something different:
 
-1. **Automated tests** (`tests/test_basico.py`, 43 in version 0.6.1). Each builds a small case (a PDF, a Word file, a PowerPoint, a folder of theses) with invented text, except for a few one-line fragments from the bench books (chapter titles with their folio, one sentence) that reproduce the shape of a real error. It checks that Feanor does what this README says. No copyrighted book goes into the repository: only those fragments. Tests that need Tesseract, OCRmyPDF, `python-docx` or `python-pptx` are skipped if those are not installed. Since 0.6.1 they also run on GitHub on every change, with Tesseract, OCRmyPDF and Ghostscript installed; the «tests» badge at the top shows the result of the latest run. To run them:
+1. **Automated tests** (`tests/test_basico.py`, 43 in version 0.6.2). Each builds a small case (a PDF, a Word file, a PowerPoint, a folder of theses) with invented text, except for a few one-line fragments from the bench books (chapter titles with their folio, one sentence) that reproduce the shape of a real error. It checks that Feanor does what this README says. No copyrighted book goes into the repository: only those fragments. Tests that need Tesseract, OCRmyPDF, `python-docx` or `python-pptx` are skipped if those are not installed. Since 0.6.1 they also run on GitHub on every change, with Tesseract, OCRmyPDF and Ghostscript installed; the «tests» badge at the top shows the result of the latest run. To run them:
 
    ```
    python -m pip install pytest
@@ -234,7 +234,7 @@ Author: Carlos Eduardo Ravello Joo ([ORCID 0009-0007-5631-7436](https://orcid.or
 
 GitHub shows the «Cite this repository» button from [CITATION.cff](CITATION.cff). In text:
 
-> Ravello Joo, C. E. (2026). *Feanor* (Version 0.6.1) [Computer software]. https://github.com/carlosravello-png/feanor
+> Ravello Joo, C. E. (2026). *Feanor* (Version 0.6.2) [Computer software]. https://github.com/carlosravello-png/feanor
 
 ## Licence
 

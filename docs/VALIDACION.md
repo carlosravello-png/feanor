@@ -2,7 +2,7 @@
 
 [English](VALIDATION.md) · **Español**
 
-Versión 0.6.1 (24/11/2026). Este documento cruza cada resultado medido y cada comportamiento que afirma el [README](../README.es.md) con lo que lo respalda. Los parámetros (umbrales, valores por defecto, máximos) son decisiones de diseño: el README dice cuáles son, y los que salen de una medición están abajo con ella. Lo que no tiene respaldo está en «Lo que no está validado».
+Versión 0.6.2 (24/11/2026). Este documento cruza cada resultado medido y cada comportamiento que afirma el [README](../README.es.md) con lo que lo respalda. Los parámetros (umbrales, valores por defecto, máximos) son decisiones de diseño: el README dice cuáles son, y los que salen de una medición están abajo con ella. Lo que no tiene respaldo está en «Lo que no está validado».
 
 **Tipos de respaldo**
 
