@@ -1,10 +1,10 @@
 """Línea de comandos.
 
-    aplanar-libro libro.pdf                  # los tres pasos
-    aplanar-libro libro.pdf --solo aplanar   # solo el paso 1
-    aplanar-libro libro.pdf --paginas 2,4,6  # aplanar solo esas páginas
-    aplanar-libro clase.pptx                 # PowerPoint: copia su texto a Markdown
-    aplanar-libro trabajo.docx               # Word: copia su texto a Markdown
+    feanor libro.pdf                  # los tres pasos
+    feanor libro.pdf --solo aplanar   # solo el paso 1
+    feanor libro.pdf --paginas 2,4,6  # aplanar solo esas páginas
+    feanor clase.pptx                 # PowerPoint: copia su texto a Markdown
+    feanor trabajo.docx               # Word: copia su texto a Markdown
 
 Sin --solo ni --paginas, Feanor mira antes de qué tipo es cada página: si el
 PDF ya trae su texto (digital, o con un OCR previo), lo copia directo a
@@ -113,7 +113,7 @@ def _presentacion(entrada: Path, idioma: str, carpeta: Path, registro: dict) -> 
     """PowerPoint: se copia el texto que trae; las imágenes con texto se leen con OCR."""
     from .presentacion import pptx_a_markdown
     md = carpeta / f"{entrada.stem}.md"
-    print(f"aplanar-libro {__version__} · PowerPoint: texto copiado; OCR solo en las imágenes con texto")
+    print(f"Feanor {__version__} · PowerPoint: texto copiado; OCR solo en las imágenes con texto")
     inicio = time.perf_counter()
     r = pptx_a_markdown(entrada, md, idioma=idioma)
     if not r["ocr"]:
@@ -132,7 +132,7 @@ def _documento(entrada: Path, idioma: str, carpeta: Path, registro: dict) -> Non
     """Word: se copia el texto que trae; las imágenes con texto se leen con OCR."""
     from .documento import docx_a_markdown
     md = carpeta / f"{entrada.stem}.md"
-    print(f"aplanar-libro {__version__} · Word: texto copiado; OCR solo en las imágenes con texto")
+    print(f"Feanor {__version__} · Word: texto copiado; OCR solo en las imágenes con texto")
     inicio = time.perf_counter()
     r = docx_a_markdown(entrada, md, idioma=idioma)
     if not r["ocr"]:
@@ -164,7 +164,7 @@ def _ruta_digital(pdf: Path, md: Path, registro: dict, inicio: float,
     registro["tipos_de_pagina"] = {t: rangos(n) for t, n in grupos.items()}
     con_texto = sum(len(grupos.get(t, [])) for t in ("digital", "ocr_previo", "dudosa"))
     escaneadas = len(grupos.get("escaneada", []))
-    print(f"aplanar-libro {__version__} · tipo de cada página:")
+    print(f"Feanor {__version__} · tipo de cada página:")
     for t, n in grupos.items():
         print(f"  {rangos(n)}: {ORIGEN[t]}")
     if escaneadas > con_texto:
@@ -236,7 +236,7 @@ def _ruta_ocr_directo(pdf: Path, md: Path, registro: dict, inicio: float, pagina
 
 
 def main(argv: list[str] | None = None) -> None:
-    p = argparse.ArgumentParser(prog="aplanar-libro",
+    p = argparse.ArgumentParser(prog="feanor",
                                 description="Aplana páginas curvas, pasa OCR en español y genera Markdown.")
     p.add_argument("pdf", type=Path, help="PDF, PowerPoint (.pptx), Word (.docx) o una carpeta de PDF (modo lote)")
     p.add_argument("--solo", choices=["aplanar", "leer", "markdown"],
@@ -284,7 +284,7 @@ def main(argv: list[str] | None = None) -> None:
         procesar_carpeta(a.pdf, a.salida, a.idioma, a.solo_digitales, a.metadatos, a.anios, a.destino,
                          a.cuerpo, auto=a.auto, comparar=a.comparar_ocr,
                          paginas_comparacion=a.paginas_comparacion, semilla=a.semilla,
-                         linea_de_comandos=["aplanar_libro"] + list(sys.argv[1:] if argv is None else argv))
+                         linea_de_comandos=["feanor_el_aplasta_libros"] + list(sys.argv[1:] if argv is None else argv))
         return
     extension = a.pdf.suffix.lower()
     if extension == ".ppt":
@@ -335,7 +335,7 @@ def main(argv: list[str] | None = None) -> None:
         registro["paginas_pdf"] = clasificar_con_medidas(a.pdf)
 
     donde = entorno()
-    print(f"aplanar-libro {__version__} · optimizador: {donde['optimizador']} · "
+    print(f"Feanor {__version__} · optimizador: {donde['optimizador']} · "
           f"JAX {donde['jax'] or 'no instalado'} · numpy {donde['numpy']} · scipy {donde['scipy']}")
     resultados = None
     if a.solo in (None, "aplanar"):

@@ -5,6 +5,89 @@ Las mediciones del banco y los umbrales de las versiones 0.2.0 a 0.4.5 están
 en [CALIBRACION.md](CALIBRACION.md). Las versiones anteriores a 0.4.6 están en
 el historial de git, cada una con su etiqueta (`v0.1.0` a `v0.4.5`).
 
+*In English: this changelog is kept in Spanish, the language of the code. Each
+entry lists what changed, what was deliberately left unchanged, what it was
+tested with and its declared limits. A summary in English is in the
+[README](README.md) and in [docs/VALIDATION.md](docs/VALIDATION.md).*
+
+## 0.6.0 · Nombre nuevo del paquete y documentación bilingüe (24/11/2026)
+
+**Qué cambió**
+- El paquete se llama `feanor_el_aplasta_libros` (en pip,
+  `feanor-el-aplasta-libros`); antes, `aplanar-libro` / `aplanar_libro`. La
+  carpeta del código cambia de nombre con él.
+- El comando instalado es `feanor` (antes `aplanar-libro`); también funciona
+  `python -m feanor_el_aplasta_libros`. La ayuda (`--help`) y los mensajes de
+  la consola dicen «feanor» y «Feanor <versión>».
+- En `_lote.json`, `linea_de_comandos` empieza con `feanor_el_aplasta_libros`.
+- Documentación: `README.md` en inglés (el que muestra GitHub) y
+  `README.es.md` en español, espejo uno del otro; `docs/VALIDATION.md` y
+  `docs/VALIDACION.md`, que cruzan cada resultado medido y cada comportamiento que afirma el README con la prueba o
+  la medición que la respalda y dicen lo que no está validado; `CITATION.cff`
+  para el botón «Cite this repository»; la licencia de cada dependencia, con
+  su fuente; la URL de instalación corregida (`.../feanor.git`).
+- `banco/muestras.json` sale del repositorio: tiene los nombres de archivo de
+  las copias de los libros de prueba, que tienen derechos de autor. Queda en la
+  PC del autor (en `.gitignore`) y en su lugar va `banco/muestras.ejemplo.json`,
+  con las mismas listas de páginas y el archivo como «<libro A: tu copia>.pdf».
+  `banco.py` sigue leyendo `muestras.json` sin cambios. Los commits anteriores
+  conservan el archivo: no se reescribió el historial, porque los `.json` de la
+  calibración guardan el commit con que se corrieron.
+- `banco.py` acepta copias de versiones con el nombre viejo (`aplanar_libro`) y
+  con el nuevo.
+
+**Qué quedó igual a propósito**
+- Ningún cálculo cambia: la 0.6.0 da el mismo resultado que la 0.5.5.
+- Las claves de los registros: el `.json` de cada archivo guarda la versión en
+  `"feanor"`, como desde la 0.5.2; en la ruta completa, el `.json` y el
+  `_informe.json` llevan además `"aplanar_libro"`, con la misma versión, para
+  comparar informes de antes y de después de la 0.6.0 con la misma clave.
+- El código, sus comentarios y los mensajes de la consola siguen en español.
+- Los atajos `.bat` de Windows no entran al repositorio: el README da los
+  comandos equivalentes.
+
+**Con qué se probó**
+- Las 43 pruebas automáticas pasan con el nombre nuevo, sin ninguna saltada,
+  en Linux y en Windows (la PC del autor), con el paquete viejo ya
+  desinstalado: `find_spec('aplanar_libro')` da `None` (solo cambia la ruta
+  de los `import` y el primer elemento de `linea_de_comandos`).
+- El Tolkien (14 páginas, ruta completa, aplanado en paralelo en Windows) con
+  la 0.5.5 y con la 0.6.0: `.md` idéntico byte a byte y las 14 imágenes
+  iguales; en los PDF solo cambian el `/ID` del trailer y la fecha.
+- Instalado en un entorno aparte: `feanor --help` y
+  `python -m feanor_el_aplasta_libros --help` responden; `pip show` da
+  `feanor-el-aplasta-libros 0.6.0`.
+- 0.5.5 frente a 0.6.0 sobre el mismo material: un PDF digital de 6 páginas
+  con índice, referencias y anexos (suelto y en un lote `--auto --cuerpo`), y
+  un lote `--auto --cuerpo` con un Word, un PowerPoint, un PDF mixto (3
+  páginas digitales y 1 escaneada) y un PDF escaneado de 2 páginas, más ese
+  escaneado por la ruta completa (aplanar, OCR, Markdown). Resultado: todos los
+  `.md` idénticos byte a byte; los PDF (`_plano.pdf`, `_ocr.pdf`) con el mismo
+  texto y las mismas imágenes, y solo la fecha de creación distinta; en los
+  `.json` y `_lote.*` solo difieren la versión, las fechas, los segundos, la
+  memoria libre del momento, la carpeta de salida y el primer elemento de
+  `linea_de_comandos`.
+- `CITATION.cff` validado con `cffconvert` contra el esquema 1.2.0.
+- Medición pendiente de la 0.5.5, hecha en la PC del autor el 24/11/2026 con
+  `banco/diagnostico_output_type.py` (OCRmyPDF 17.14.1, Tesseract 5.5.3,
+  Ghostscript 10.08.0). Páginas no pedidas alteradas, «auto» frente a «pdf»:
+  7172, 89 (29 solo espacios, 60 con palabras) frente a 0; 4309, 4 (solo
+  espacios) frente a 0; 7659, 5 (con palabras: 37, 42, 46, 47, 58) en los dos
+  modos. `--output-type pdf` queda confirmado; la comprobación sigue por la
+  7659.
+- Licencias: metadatos de cada paquete instalado, documentación de PyMuPDF,
+  página de licencias de Artifex (Ghostscript) y repositorio de Tesseract,
+  consultados el 24/11/2026.
+
+**Límites declarados**
+- Quien tenga instalada una versión anterior debe desinstalar `aplanar-libro`
+  antes de instalar la 0.6.0; si no, quedan los dos paquetes y el comando
+  `aplanar-libro` sigue apuntando a la versión vieja.
+- Los atajos `.bat` que llamaban a `python -m aplanar_libro` dejan de
+  funcionar hasta cambiarlos a `python -m feanor_el_aplasta_libros`.
+- Si el lote se vuelve a correr sobre una carpeta ya procesada con la 0.5.5,
+  todo se procesa de nuevo: el salto de lo ya hecho compara la versión.
+
 ## 0.5.5 · Referencias más robustas, OCR con --output-type pdf, comando del lote registrado (20/11/2026)
 
 **Qué cambió**

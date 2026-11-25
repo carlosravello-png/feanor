@@ -4,8 +4,8 @@ import pytest
 import pymupdf as fitz
 import numpy as np
 
-from aplanar_libro.aplanar import recortar
-from aplanar_libro.markdown import pdf_a_markdown
+from feanor_el_aplasta_libros.aplanar import recortar
+from feanor_el_aplasta_libros.markdown import pdf_a_markdown
 
 
 def _pagina_sintetica():
@@ -48,14 +48,14 @@ LARGA2 = "y esta es otra línea igual de larga que sigue en el mismo párrafo de
 
 
 def test_limpiar_quita_ruido_y_folio():
-    from aplanar_libro.markdown import limpiar
+    from feanor_el_aplasta_libros.markdown import limpiar
     s = limpiar("\n".join(["18", "INTRODUCCIÓN", LARGA1, "|", "—", LARGA2, "1S"]))
     assert s.split("\n") == ["INTRODUCCIÓN", LARGA1, LARGA2]
 
 
 def test_indice_que_termina_en_numero_no_pierde_datos(tmp_path):
     """Auditoría 14/11/2026: el folio borraba el último número de un índice."""
-    from aplanar_libro.markdown import es_indice
+    from feanor_el_aplasta_libros.markdown import es_indice
     indice = "\n".join(["ÍNDICE", "Prefacio", "11", "I.", "La infancia de Túrin", "31",
                         "XIII.", "La llegada de Túrin a Brethil", "167"])
     assert es_indice(indice)
@@ -74,7 +74,7 @@ def test_indice_que_termina_en_numero_no_pierde_datos(tmp_path):
 
 def test_nombre_cortado_se_une_y_compuesto_se_conserva():
     """Auditoría 14/11/2026: quedaban «Si-rion» y «Féa-nor»."""
-    from aplanar_libro.markdown import limpiar
+    from feanor_el_aplasta_libros.markdown import limpiar
     doc = "\n".join(["donde nacía el río Si-", "rion, en la cara oriental de las montañas",
                      "el hermanastro de Féa-", "nor), quien era considerado señor supremo",
                      "Túrin nació en Dor-lómin, en el invierno", "vivió en Dor-", "lómin durante años",
@@ -89,7 +89,7 @@ def test_nombre_cortado_se_une_y_compuesto_se_conserva():
 
 def test_letra_suelta_no_rompe_la_union():
     """Auditoría 14/11/2026: «escri-» + «l» + «bió» daba «escril»."""
-    from aplanar_libro.markdown import limpiar
+    from feanor_el_aplasta_libros.markdown import limpiar
     s = limpiar("\n".join(["pasaje citado de una larga carta que mi padre escri-", "l",
                            "bió en 1951, tres años antes de la publicación de la obra",
                            "conocido como tal. Por otro lado, tal como mi pa-", "1",
@@ -99,13 +99,13 @@ def test_letra_suelta_no_rompe_la_union():
 
 
 def test_letra_suelta_en_indice_se_conserva():
-    from aplanar_libro.markdown import limpiar
+    from feanor_el_aplasta_libros.markdown import limpiar
     s = limpiar("\n".join(["I.", "La infancia", "V.", "Túrin en Doriath", "X.", "Nargothrond"]))
     assert "V." in s and "X." in s
 
 
 def test_curva_recta_vs_curva():
-    from aplanar_libro.calidad import curva_p90
+    from feanor_el_aplasta_libros.calidad import curva_p90
     recta = np.full((1400, 1100), 255, np.uint8)
     curva = recta.copy()
     for k in range(12):
@@ -124,7 +124,7 @@ def test_curva_recta_vs_curva():
 
 def test_folio_por_secuencia():
     """Folios leídos 13, 14, 17 y 22 en las páginas 5, 6, 9 y 14 del visor; 18 leído como «1S»."""
-    from aplanar_libro.markdown import deducir_folios
+    from feanor_el_aplasta_libros.markdown import deducir_folios
     textos = [LARGA1] * 14
     textos[4] = "PREFACIO\n13\n" + LARGA1
     textos[5] = "14\nPREFACIO\n" + LARGA1
@@ -141,14 +141,14 @@ def test_folio_por_secuencia():
 
 
 def test_sin_secuencia_no_inventa_folios():
-    from aplanar_libro.markdown import deducir_folios
+    from feanor_el_aplasta_libros.markdown import deducir_folios
     assert deducir_folios([LARGA1, "7\n" + LARGA1, LARGA2], indices=[]) == {}
 
 
 def test_folio_con_salto_y_capitulo():
     """Pliegos 1 a 4 (folios 2 a 9), falta el pliego de 12-13, siguen 14 y 15.
     «Capítulo 1» en el encabezado no debe contar como folio."""
-    from aplanar_libro.markdown import deducir_folios
+    from feanor_el_aplasta_libros.markdown import deducir_folios
     t = [LARGA1] * 14
     for visor, folio in ((1, 2), (3, 4), (5, 6), (7, 8), (11, 14), (13, 16)):
         t[visor - 1] = f"{folio}\nEl fenómeno de la inmunidad\nCapítulo 1\n" + LARGA1
@@ -161,7 +161,7 @@ def test_folio_con_salto_y_capitulo():
 
 def test_pliego_sale_izquierda_y_luego_derecha():
     """Auditoría 14/11/2026: un pliego invertido rompería la secuencia de folios en silencio."""
-    from aplanar_libro.pliegos import preparar
+    from feanor_el_aplasta_libros.pliegos import preparar
     import random
     random.seed(1)
     palabras = "el la de que los las una por con para como sistema inmune celulas antigeno respuesta".split()
@@ -204,7 +204,7 @@ def test_pagina_con_lineas_y_sin_texto_se_marca(tmp_path):
 
 def test_lectura_rapida_distingue_texto_de_blanco(tmp_path):
     """La comprobación del aplanado lee más palabras en una página con texto que en una vacía."""
-    from aplanar_libro.aplanar import palabras_legibles, _tesseract
+    from feanor_el_aplasta_libros.aplanar import palabras_legibles, _tesseract
     if _tesseract() is None:
         pytest.skip("Tesseract no está instalado: no hay nada que comparar")
     con_texto = np.full((1400, 2000), 255, np.uint8)
@@ -219,7 +219,7 @@ def test_lectura_rapida_distingue_texto_de_blanco(tmp_path):
 def test_pliego_con_un_lado_vacio_tambien_se_parte():
     """Una hoja en blanco frente a una página con texto: salen dos mitades y
     el corte no atraviesa el texto."""
-    from aplanar_libro.pliegos import corte_de_pliego
+    from feanor_el_aplasta_libros.pliegos import corte_de_pliego
     pliego = np.full((1000, 1600), 255, np.uint8)
     for k in range(25):                                    # texto solo a la derecha
         cv2.putText(pliego, "texto de la pagina derecha del pliego", (860, 100 + 32 * k),
@@ -231,7 +231,7 @@ def test_pliego_con_un_lado_vacio_tambien_se_parte():
 
 def test_folio_con_guion_y_espacio_no_tumba_la_corrida():
     """«66- » en el pie de página se lee como el folio 66 (falló en un libro de 511 páginas)."""
-    from aplanar_libro.markdown import _lecturas_de_folio
+    from feanor_el_aplasta_libros.markdown import _lecturas_de_folio
     assert _lecturas_de_folio("texto de la página\nmás texto\notra línea\ny otra\n66- ") == [66]
     assert _lecturas_de_folio("- 12 -\ntexto de la página\nmás texto\notra línea\nfin") == [12]
     assert _lecturas_de_folio("texto\nmás texto\notra línea\ny otra\n66- .") == [66]
@@ -241,7 +241,7 @@ def test_powerpoint_a_markdown(tmp_path):
     """Diapositiva en columnas, número dibujado junto a su renglón, tabla y notas."""
     pptx = pytest.importorskip("pptx")
     from pptx.util import Inches
-    from aplanar_libro.presentacion import pptx_a_markdown
+    from feanor_el_aplasta_libros.presentacion import pptx_a_markdown
 
     prs = pptx.Presentation()
     d = prs.slides.add_slide(prs.slide_layouts[6])            # diapositiva en blanco
@@ -276,7 +276,7 @@ def test_powerpoint_rotulo_valor_se_lee_por_filas(tmp_path):
     """Una lista «rótulo: valor» no es un par de columnas: cada valor va con su rótulo."""
     pptx = pytest.importorskip("pptx")
     from pptx.util import Inches
-    from aplanar_libro.presentacion import pptx_a_markdown
+    from feanor_el_aplasta_libros.presentacion import pptx_a_markdown
 
     prs = pptx.Presentation()
     d = prs.slides.add_slide(prs.slide_layouts[6])
@@ -297,8 +297,8 @@ def test_powerpoint_lee_texto_de_imagenes(tmp_path):
     un logo chico no se lee, y una foto sin texto queda solo anotada."""
     pptx = pytest.importorskip("pptx")
     from pptx.util import Inches
-    from aplanar_libro.entorno import ruta_tesseract
-    from aplanar_libro.presentacion import pptx_a_markdown
+    from feanor_el_aplasta_libros.entorno import ruta_tesseract
+    from feanor_el_aplasta_libros.presentacion import pptx_a_markdown
     if not ruta_tesseract():
         pytest.skip("Tesseract no está instalado")
 
@@ -335,8 +335,8 @@ def test_powerpoint_numero_suelto_llega_marcado(tmp_path):
     no se borra."""
     pptx = pytest.importorskip("pptx")
     from pptx.util import Inches
-    from aplanar_libro.entorno import ruta_tesseract
-    from aplanar_libro.presentacion import pptx_a_markdown
+    from feanor_el_aplasta_libros.entorno import ruta_tesseract
+    from feanor_el_aplasta_libros.presentacion import pptx_a_markdown
     if not ruta_tesseract():
         pytest.skip("Tesseract no está instalado")
 
@@ -360,7 +360,7 @@ def test_powerpoint_numero_suelto_llega_marcado(tmp_path):
 def test_forma_de_palabra():
     """Sin diccionario: «Cpg?» (sin vocal), «%00s» (cifras dentro) y «SUPoOSICION»
     (mayúsculas mezcladas) no cuentan como palabras; sí las normales."""
-    from aplanar_libro.presentacion import _parece_palabra
+    from feanor_el_aplasta_libros.presentacion import _parece_palabra
     for w in ["Cpg?", "%00s", "SUPoOSICION", "1", "2)", "ld", "E"]:
         assert not _parece_palabra(w), w
     for w in ["CONFIDENCIALIDAD", "Beneficencia).", "información", "(Principio", "Art."]:
@@ -403,7 +403,7 @@ def _pdf_de_prueba(ruta, paginas):
 
 
 def test_tipo_de_cada_pagina(tmp_path):
-    from aplanar_libro.tipo_pdf import clasificar, rangos
+    from feanor_el_aplasta_libros.tipo_pdf import clasificar, rangos
     pdf = tmp_path / "mezcla.pdf"
     _pdf_de_prueba(pdf, ["digital", "ocr_previo", "tapado", "escaneada", "vacia"])
     assert clasificar(pdf) == ["digital", "ocr_previo", "ocr_previo", "escaneada", "vacia"]
@@ -413,7 +413,7 @@ def test_tipo_de_cada_pagina(tmp_path):
 def test_ruta_digital_de_punta_a_punta(tmp_path):
     """Un PDF que ya trae texto pasa directo a Markdown, sin aplanar ni OCR, y el
     .md dice de dónde sale el texto; uno de fotos sin texto no toma esa ruta."""
-    from aplanar_libro.cli import _ruta_digital
+    from feanor_el_aplasta_libros.cli import _ruta_digital
     pdf = tmp_path / "libro.pdf"
     _pdf_de_prueba(pdf, ["digital"] * 4 + ["ocr_previo"])
     md = tmp_path / "libro.md"
@@ -439,7 +439,7 @@ def test_word_a_markdown(tmp_path):
     docx = pytest.importorskip("docx")
     from docx.oxml.ns import qn
     from lxml import etree
-    from aplanar_libro.documento import docx_a_markdown
+    from feanor_el_aplasta_libros.documento import docx_a_markdown
 
     d = docx.Document()
     d.add_heading("Introducción", level=1)
@@ -468,7 +468,7 @@ def test_word_a_markdown(tmp_path):
 def test_word_listas_numeradas(tmp_path):
     """Las listas numeradas conservan su número; las de viñetas siguen como viñetas."""
     docx = pytest.importorskip("docx")
-    from aplanar_libro.documento import docx_a_markdown
+    from feanor_el_aplasta_libros.documento import docx_a_markdown
 
     d = docx.Document()
     d.add_paragraph("primer paso", style="List Number")
@@ -486,7 +486,7 @@ def test_word_listas_numeradas(tmp_path):
 def test_enlace_cortado_con_guion_no_se_une():
     """Una URL, un DOI o un correo cortado con guion al final de la línea se deja
     tal cual: el guion puede ser parte del enlace. Una palabra sí se une."""
-    from aplanar_libro.markdown import limpiar
+    from feanor_el_aplasta_libros.markdown import limpiar
     t = limpiar("Lineamientos. https://www.sistemas-\neducativos.gob.pe/a.pdf\n"
                 "Revista. https://doi.org/10.1016/j.psico-\nneuro.2021.105\n"
                 "correo juan.pe-\nrez@gmail.com y una palabra anterior-\nmente")
@@ -502,8 +502,8 @@ def test_salida_en_su_carpeta_con_json(tmp_path):
     import json
     docx = pytest.importorskip("docx")
     from pptx import Presentation
-    from aplanar_libro.cli import main
-    from aplanar_libro.entorno import _sha256
+    from feanor_el_aplasta_libros.cli import main
+    from feanor_el_aplasta_libros.entorno import _sha256
 
     origen, salida = tmp_path / "origen", tmp_path / "salida"
     origen.mkdir()
@@ -556,7 +556,7 @@ def _tesis_sintetica(ruta, con_referencias=True):
 def test_referencias_por_titulo():
     """Se toma el último título (el del índice no cuenta) y la sección termina
     antes de los anexos; sin título, None."""
-    from aplanar_libro.referencias import buscar_referencias, texto_de_referencias
+    from feanor_el_aplasta_libros.referencias import buscar_referencias, texto_de_referencias
     textos = ["ÍNDICE\nREFERENCIAS\n45", "cuerpo del trabajo",
               "VII. REFERENCIAS BIBLIOGRÁFICAS\nPérez (2021).\nANEXOS\nInstrumento", "Anexo 2"]
     r = buscar_referencias(textos)
@@ -572,7 +572,7 @@ def test_lote_una_salida_por_pdf(tmp_path):
     _referencias.md con el texto crudo); la escaneada se aparta, el PDF roto
     falla sin tumbar el lote, y en la segunda corrida lo hecho se salta."""
     import csv
-    from aplanar_libro.cli import main
+    from feanor_el_aplasta_libros.cli import main
     carpeta, salida = tmp_path / "tesis", tmp_path / "salida"
     carpeta.mkdir()
     _tesis_sintetica(carpeta / "20.500.12692_1.pdf")
@@ -604,8 +604,8 @@ def test_lote_con_metadatos_y_candado(tmp_path):
     carrera y año; fuera de 2015–2017, con SHA-256 distinto, con descarga
     fallida o sin fila en el CSV, no se procesa. Todo va a la carpeta exacta."""
     import csv
-    from aplanar_libro.cli import main
-    from aplanar_libro.entorno import _sha256
+    from feanor_el_aplasta_libros.cli import main
+    from feanor_el_aplasta_libros.entorno import _sha256
     carpeta, destino = tmp_path / "tesis_calibracion", tmp_path / "tesis calibracion"
     carpeta.mkdir()
     for k in range(1, 6):
@@ -639,8 +639,8 @@ def test_lote_con_metadatos_y_candado(tmp_path):
 def test_cuerpo_sin_margenes_repetidos_ni_referencias():
     """El cuerpo deja fuera el encabezado repetido (solo en el margen), el
     índice con puntos guía, las referencias y los anexos."""
-    from aplanar_libro.cuerpo import cuerpo
-    from aplanar_libro.referencias import buscar_referencias
+    from feanor_el_aplasta_libros.cuerpo import cuerpo
+    from feanor_el_aplasta_libros.referencias import buscar_referencias
     enc = "UNIVERSIDAD CÉSAR VALLEJO"
     textos = [f"{enc}\nÍNDICE\nIntroducción ........ 1\nMétodo ........ 5\nResultados ........ 9\nReferencias ........ 12\nAnexos ........ 14\n1",
               f"{enc}\nI. INTRODUCCIÓN\nEl estudio se hizo en la {enc.title()} con estudiantes.\n2",
@@ -660,7 +660,7 @@ def test_lote_marca_texto_sobre_foto(tmp_path):
     """Una tesis con texto visible sobre fotos de página completa (un sello
     sobre un escaneo) sale «digital», pero se marca para revisar."""
     import csv
-    from aplanar_libro.cli import main
+    from feanor_el_aplasta_libros.cli import main
     carpeta = tmp_path / "t"
     carpeta.mkdir()
     _pdf_de_prueba(carpeta / "sello.pdf", ["tapado_al_reves"] * 3)
@@ -671,7 +671,7 @@ def test_lote_marca_texto_sobre_foto(tmp_path):
 
 
 def test_distancia_y_tasa_de_error_por_palabra():
-    from aplanar_libro.comparacion import distancia, metricas
+    from feanor_el_aplasta_libros.comparacion import distancia, metricas
     assert distancia(["a", "b", "c"], ["a", "x", "c", "d"]) == 2       # una sustitución y una inserción
     m = metricas("El jurado aprueba la tesis.", "El jurado aprneba la tesis")
     assert m["palabras_nativo"] == 5 and m["errores"] == 1 and m["wer"] == 0.2
@@ -683,7 +683,7 @@ def test_lote_automatico_un_metodo_por_archivo(tmp_path):
     import csv
     docx = pytest.importorskip("docx")
     from pptx import Presentation
-    from aplanar_libro.cli import main
+    from feanor_el_aplasta_libros.cli import main
     carpeta, salida = tmp_path / "mezcla", tmp_path / "salida"
     carpeta.mkdir()
     _tesis_sintetica(carpeta / "tesis.pdf")
@@ -716,7 +716,7 @@ def test_comparacion_ocr_con_paginas_del_cuerpo(tmp_path):
     import csv
     if not _hay_ocr():
         pytest.skip("sin OCRmyPDF o Tesseract")
-    from aplanar_libro.cli import main
+    from feanor_el_aplasta_libros.cli import main
     carpeta = tmp_path / "t"
     carpeta.mkdir()
     doc = fitz.open()
@@ -742,8 +742,8 @@ def _hay_ocr():
     PATH: en Windows OCRmyPDF suele estar en la carpeta de `uv tool` y Tesseract
     en Program Files). Con shutil.which, en la PC del autor estas pruebas se
     saltaban sin probar nada."""
-    from aplanar_libro.entorno import ruta_tesseract
-    from aplanar_libro.leer import encontrar_ocrmypdf
+    from feanor_el_aplasta_libros.entorno import ruta_tesseract
+    from feanor_el_aplasta_libros.leer import encontrar_ocrmypdf
     try:
         encontrar_ocrmypdf()
     except FileNotFoundError:
@@ -759,7 +759,7 @@ def test_auto_lee_la_pagina_escaneada_aunque_traiga_sello(tmp_path):
     import json
     if not _hay_ocr():
         pytest.skip("sin OCRmyPDF o Tesseract")
-    from aplanar_libro.cli import main
+    from feanor_el_aplasta_libros.cli import main
     carpeta = tmp_path / "c"
     carpeta.mkdir()
     _pdf_de_prueba(carpeta / "acta.pdf", ["escaneada_con_sello", "imagen_en_blanco"])
@@ -782,7 +782,7 @@ def test_auto_capa_ocr_previa_mas_paginas_escaneadas(tmp_path):
     import json
     if not _hay_ocr():
         pytest.skip("sin OCRmyPDF o Tesseract")
-    from aplanar_libro.cli import main
+    from feanor_el_aplasta_libros.cli import main
     carpeta = tmp_path / "c"
     carpeta.mkdir()
     _pdf_de_prueba(carpeta / "mixto.pdf", ["ocr_previo", "ocr_previo", "ocr_previo", "escaneada"])
@@ -797,8 +797,8 @@ def test_auto_capa_ocr_previa_mas_paginas_escaneadas(tmp_path):
 def test_ligaduras_y_guion_no_cuentan_como_error_ni_parten_palabras():
     """La comparación normaliza igual los dos textos (NFKC y guion de fin de
     línea), y el cuerpo para el léxico pasa las ligaduras a letras."""
-    from aplanar_libro.comparacion import metricas, normalizar
-    from aplanar_libro.cuerpo import cuerpo
+    from feanor_el_aplasta_libros.comparacion import metricas, normalizar
+    from feanor_el_aplasta_libros.cuerpo import cuerpo
     nativo = "La con\ufb01anza y la re\ufb02exión son anterior-\nmente importantes."
     ocr = "La confianza y la reflexión son anteriormente\nimportantes."
     assert metricas(nativo, ocr)["errores"] == 0
@@ -814,8 +814,8 @@ def test_auto_pagina_nativa_alterada_por_el_ocr_se_toma_del_original(tmp_path, m
     poder forzar la alteración."""
     import csv
     import json
-    import aplanar_libro.leer as leer
-    from aplanar_libro.cli import main
+    import feanor_el_aplasta_libros.leer as leer
+    from feanor_el_aplasta_libros.cli import main
 
     def ocr_falso(entrada, salida, paginas, idioma="spa"):
         doc = fitz.open(entrada)
@@ -847,7 +847,7 @@ def test_referencias_casos_de_la_calibracion():
     anexado con sus referencias (UCV), índice sin números con errata en el
     título real, página de UNMSM que dice cómo citar la tesis, años en su propia
     línea, prosa cortada en «referencias bibliográficas» y tilde combinante."""
-    from aplanar_libro.referencias import buscar_referencias
+    from feanor_el_aplasta_libros.referencias import buscar_referencias
     cuerpo = "El estudio analiza la variable en los estudiantes de la muestra."
     # UCV: las referencias de la tesis, no las del artículo anexado
     ucv = ["ÍNDICE\nVII. Referencias bibliográficas\nVIII. Anexos", cuerpo,
@@ -880,7 +880,7 @@ def test_auto_ocr_con_salida_pdf_sin_paginas_alteradas(tmp_path):
     import json
     if not _hay_ocr():
         pytest.skip("sin OCRmyPDF o Tesseract")
-    from aplanar_libro.cli import main
+    from feanor_el_aplasta_libros.cli import main
     carpeta = tmp_path / "c"
     carpeta.mkdir()
     _pdf_de_prueba(carpeta / "mixto.pdf", ["escaneada_con_sello", "digital", "digital"])
@@ -896,8 +896,8 @@ def test_lote_guarda_comando_y_separa_alertas(tmp_path, monkeypatch):
     separa «solo espacios» de «cambian palabras» (OCRmyPDF simulado)."""
     import csv
     import json
-    import aplanar_libro.leer as leer
-    from aplanar_libro.cli import main
+    import feanor_el_aplasta_libros.leer as leer
+    from feanor_el_aplasta_libros.cli import main
 
     def ocr_falso(entrada, salida, paginas, idioma="spa", tipo_salida="pdf"):
         doc = fitz.open(entrada)
@@ -922,4 +922,4 @@ def test_lote_guarda_comando_y_separa_alertas(tmp_path, monkeypatch):
     assert "(cambian palabras); se usó su texto del original: [3]" in fila["revisar"]
     assert "(solo espacios); se usó su texto del original: [2]" in fila["revisar"]
     lote = json.loads((base / "_lote.json").read_text(encoding="utf-8"))
-    assert lote["linea_de_comandos"] == ["aplanar_libro", str(carpeta), "--auto", "--salida", str(tmp_path / "s")]
+    assert lote["linea_de_comandos"] == ["feanor_el_aplasta_libros", str(carpeta), "--auto", "--salida", str(tmp_path / "s")]

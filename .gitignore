@@ -20,3 +20,5 @@ banco/versiones/
 banco/paddle_prueba/
 banco/analisis/
 banco/__pycache__/
+# Lista real de muestras del banco (nombres de archivo de libros con derechos): solo en la PC del autor
+banco/muestras.json

@@ -3,9 +3,9 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aplanar-libro"
-version = "0.5.5"
-description = "Aplana páginas curvas de libros escaneados, pasa OCR en español y genera Markdown."
+name = "feanor-el-aplasta-libros"
+version = "0.6.0"
+description = "Feanor: pasa PDF, Word y PowerPoint a Markdown; aplana páginas curvas de libros escaneados y pasa OCR en español."
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Carlos Eduardo Ravello Joo" }]
@@ -27,7 +27,7 @@ dependencies = [
 rapido = ["jax[cpu]"]
 
 [project.scripts]
-aplanar-libro = "aplanar_libro.cli:main"
+feanor = "feanor_el_aplasta_libros.cli:main"
 
 [tool.setuptools]
-packages = ["aplanar_libro"]
+packages = ["feanor_el_aplasta_libros"]

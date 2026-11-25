@@ -18,9 +18,9 @@ from pathlib import Path
 import pymupdf as fitz
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from aplanar_libro.entorno import entorno_ocr  # noqa: E402
-from aplanar_libro.leer import ocr_paginas  # noqa: E402
-from aplanar_libro.tipo_pdf import clasificar  # noqa: E402
+from feanor_el_aplasta_libros.entorno import entorno_ocr  # noqa: E402
+from feanor_el_aplasta_libros.leer import ocr_paginas  # noqa: E402
+from feanor_el_aplasta_libros.tipo_pdf import clasificar  # noqa: E402
 
 
 def medir(pdf: Path, pedidas: list[int], tipo_salida: str, carpeta: Path) -> dict:

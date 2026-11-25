@@ -1,7 +1,7 @@
 """Modo lote: una carpeta de PDF de una vez, con una salida por archivo.
 
-    aplanar-libro carpeta_de_tesis                    # todas las de texto
-    aplanar-libro carpeta_de_tesis --solo-digitales   # solo las de texto digital
+    feanor carpeta_de_tesis                    # todas las de texto
+    feanor carpeta_de_tesis --solo-digitales   # solo las de texto digital
 
 Cada PDF va por la ruta digital y deja su carpeta, como un archivo suelto: su
 .md, su .json y, si se encontró, su _referencias.md. El nombre sale del nombre
@@ -243,7 +243,7 @@ def procesar_carpeta(carpeta: Path, salida: Path | None, idioma: str = "spa",
                    and not (metadatos and p.resolve() == metadatos.resolve()))
     archivos = todos if automatico else [p for p in todos if p.suffix.lower() == ".pdf"]
     otros = [p.name for p in todos if p not in archivos]
-    print(f"aplanar-libro {__version__} · modo lote: {len(archivos)} archivos en {carpeta}"
+    print(f"Feanor {__version__} · modo lote: {len(archivos)} archivos en {carpeta}"
           + (f" ({len(otros)} que no son PDF, no se tocan)" if otros else ""))
     print(f"  salida: {base}" + ("  ·  solo texto digital" if solo_digitales else "")
           + ("  ·  automático: cada archivo con su método, OCR sin aplanar" if auto else ""))

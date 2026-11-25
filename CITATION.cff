@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use Feanor, please cite it as below. / Si usas Feanor, cítalo así."
+type: software
+title: "Feanor"
+abstract: >-
+  Feanor turns scanned or photographed books, thesis PDFs, Word documents and
+  PowerPoint presentations in Spanish into Markdown. It flattens pages that
+  curve towards the spine before OCR, detects where the text of each page
+  comes from, locates the references section, and processes whole folders of
+  theses with one result per file and a full record of each run.
+authors:
+  - family-names: "Ravello Joo"
+    given-names: "Carlos Eduardo"
+    orcid: "https://orcid.org/0009-0007-5631-7436"
+version: "0.6.0"
+date-released: "2026-11-24"
+license: MIT
+repository-code: "https://github.com/carlosravello-png/feanor"
+keywords:
+  - OCR
+  - PDF
+  - Markdown
+  - Spanish
+  - page dewarping
+  - theses
+  - text extraction

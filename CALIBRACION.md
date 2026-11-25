@@ -1,4 +1,6 @@
-# Calibración y banco de pruebas de aplanar-libro
+# Calibración y banco de pruebas de Feanor
+
+Hasta la 0.5.5 el paquete se llamaba `aplanar-libro`; las rutas de código de abajo usan el nombre actual.
 
 Qué se midió para fijar cada umbral, con qué material y qué no garantiza. Índice por versión:
 
@@ -43,7 +45,7 @@ La etiqueta de cada página viene de una auditoría independiente que leyó el `
 
 ### Cómo se calcula A
 
-En `aplanar_libro/calidad.py`:
+En `feanor_el_aplasta_libros/calidad.py`:
 1. Por cada línea de texto larga, se mide la altura del texto en 8 trozos.
 2. Se ajusta una recta a los trozos alejados del lomo.
 3. Se mide cuánto se aparta de esa recta el extremo del lomo, en alturas de letra.

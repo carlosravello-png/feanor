@@ -1,4 +1,4 @@
-"""Banco de pruebas fijo de aplanar-libro.
+"""Banco de pruebas fijo de Feanor (hasta la 0.5.5, aplanar-libro).
 
 Uso (Anaconda Prompt):
     python D:\\PDF_A_MD\\banco\\banco.py v0.4.4
@@ -91,15 +91,19 @@ def main() -> None:
         sys.exit("Falta la versión. Ejemplo: python banco.py v0.4.4")
     version = sys.argv[1]
     codigo = AQUI / "versiones" / version
-    if not (codigo / "aplanar_libro").is_dir():
-        sys.exit(f"No existe {codigo}\\aplanar_libro")
+    # Desde la 0.6.0 el paquete se llama feanor_el_aplasta_libros; las copias de
+    # versiones anteriores guardadas en versiones\ conservan aplanar_libro.
+    paquete = next((n for n in ("feanor_el_aplasta_libros", "aplanar_libro")
+                    if (codigo / n).is_dir()), None)
+    if paquete is None:
+        sys.exit(f"No existe {codigo}\\feanor_el_aplasta_libros ni {codigo}\\aplanar_libro")
     muestras = json.loads((AQUI / "muestras.json").read_text(encoding="utf-8"))["muestras"]
     sin_aplanar = "--sin-aplanar" in sys.argv
     otros = [x for x in sys.argv[2:] if not x.startswith("--")]
     solo = otros[0].split(",") if otros else None
     # Comprobar que Python va a usar la versión pedida y no la instalada.
     entorno = {**os.environ, "PYTHONPATH": str(codigo), "PYTHONIOENCODING": "utf-8"}
-    r = subprocess.run([sys.executable, "-c", "import aplanar_libro; print(aplanar_libro.__file__)"],
+    r = subprocess.run([sys.executable, "-c", f"import {paquete}; print({paquete}.__file__)"],
                        capture_output=True, text=True, env=entorno)
     usada = Path(r.stdout.strip() or ".").resolve()
     if codigo.resolve() not in usada.parents:
@@ -120,7 +124,7 @@ def main() -> None:
         t = time.perf_counter()
         with open(carpeta / "consola.txt", "w", encoding="utf-8") as consola:
             extra = ["--solo", "aplanar", "--paginas", "0"] if sin_aplanar else []
-            r = subprocess.run([sys.executable, "-m", "aplanar_libro", "x.pdf", "--modo", m["modo"]] + extra,
+            r = subprocess.run([sys.executable, "-m", paquete, "x.pdf", "--modo", m["modo"]] + extra,
                                cwd=carpeta, stdout=consola, stderr=subprocess.STDOUT,
                                env=entorno)
         if sin_aplanar:

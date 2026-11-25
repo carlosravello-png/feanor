@@ -158,6 +158,10 @@ def entorno() -> dict:
     from . import __version__
 
     return {
+        # Clave de la ruta completa (va al .json y al <nombre>_informe.json).
+        # Conserva el nombre anterior del paquete para que los informes de antes
+        # y de después de la 0.6.0 se comparen con la misma clave. La versión va
+        # también en "feanor" (ver entorno_ocr), en todas las rutas.
         "aplanar_libro": __version__,
         "optimizador": optimizador(),
         "jax": _version("jax"),

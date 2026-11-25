@@ -1,4 +1,4 @@
-Banco de pruebas fijo de aplanar-libro (creado el 14/11/2026)
+Banco de pruebas fijo de Feanor, antes aplanar-libro (creado el 14/11/2026)
 
 Qué hay aquí
   banco.py        el script que corre el banco
@@ -13,7 +13,9 @@ Cómo se corre (Anaconda Prompt), una corrida a la vez
   cd D:\PDF_A_MD\banco
   python banco.py v0.4.3
 
-Los libros de muestra tienen derechos de autor: esta carpeta no va al repositorio.
+Los libros de muestra tienen derechos de autor: no van al repositorio. Al repositorio van
+los scripts y muestras.ejemplo.json; muestras.json, con los nombres de archivo reales,
+queda solo en esta computadora (está en .gitignore).
 
 Nota para la copia del repositorio: estos scripts esperan estar en una carpeta
 `banco` junto a los libros de muestra (hoy, D:\PDF_A_MD\banco). Las carpetas
