@@ -236,9 +236,9 @@ Autor: Carlos Eduardo Ravello Joo ([ORCID 0009-0007-5631-7436](https://orcid.org
 
 GitHub muestra el botón «Cite this repository» a partir de [CITATION.cff](https://github.com/carlosravello-png/feanor/blob/main/CITATION.cff). En texto:
 
-> Ravello Joo, C. E. (2026). *Feanor* [Software]. Zenodo. https://doi.org/10.5281/zenodo.24522078
+> Ravello Joo, C. E. (2026). *Feanor* (versión 0.6.3) [Software]. Zenodo. https://doi.org/10.5281/zenodo.24535094
 
-Ese DOI agrupa todas las versiones y siempre abre la última. Cita la versión que usaste: cada versión tiene su propio DOI, en su registro de Zenodo y en [CITATION.cff](https://github.com/carlosravello-png/feanor/blob/main/CITATION.cff). Archivo permanente del código en [Software Heritage](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/carlosravello-png/feanor).
+Ese es el DOI de la versión 0.6.3. Si usaste otra versión, cita su propio DOI, en su registro de Zenodo. El DOI que agrupa todas las versiones, y siempre abre la última, es [10.5281/zenodo.24522078](https://doi.org/10.5281/zenodo.24522078). Archivo permanente del código de la v0.6.3 en Software Heritage: [swh:1:rev:8f4e0a5570c21cf7c514a50d24e80f25bbb29532](https://archive.softwareheritage.org/swh:1:rev:8f4e0a5570c21cf7c514a50d24e80f25bbb29532).
 
 ## Licencia
 
